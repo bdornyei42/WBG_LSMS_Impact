@@ -1,0 +1,15 @@
+# generated pipeline output
+LSMS_papers_*.xlsx
+~$*.xlsx
+~$*.xlsm
+
+# python
+__pycache__/
+*.pyc
+
+# IDE
+.idea/dbnavigator.xml
+
+# scratch / backups
+discarded_python/
+discarded_excels/

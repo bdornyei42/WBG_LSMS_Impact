@@ -1,20 +1,21 @@
 """
 keywords.py — LSMS Survey Keyword Registry
 
-The exact 124 keywords reviewed and classified by the LSMS team, organised
-by survey family. Each term carries its own match tier directly:
+The keywords reviewed and classified by the LSMS team, organised by survey
+family. Each term carries its own match tier directly:
 
   A   — unambiguous. Full-text match accepted, no title/abstract requirement,
-        no discipline filter.
-  B   — medium. Must appear in the title or abstract (case-insensitive).
-  C   — short/ambiguous. Case-sensitive match required, plus a country/
-        context word nearby, plus a relevant discipline.
-  AND — compound. Split into two parts on " and "; both parts must
-        independently match.
+        no field filter.
+  C   — short/ambiguous. Case-sensitive match required, plus a country/context
+        word nearby, plus an allowed OpenAlex field.
 
 Each family also has `context_hints`: the country/survey words required
 alongside a Tier C term (e.g. "IHPS" needs "malawi" nearby to rule out the
 unrelated medical term IHP).
+
+Country-specific phone-survey terms (e.g. "HFPS and Tanzania") are handled as
+the Tier C keyword "HFPS" gated by that family's country context_hints, rather
+than as separate compound terms.
 """
 
 SURVEY_FAMILIES = [
@@ -90,7 +91,7 @@ SURVEY_FAMILIES = [
         "context_hints": ["malawi", "malawian"],
         "terms": [
             ("Malawi Second Integrated Household Survey", "A"),
-            ("Second Integrated Household Survey", "B"),
+            ("Second Integrated Household Survey", "A"),
             ("IHS", "C"),
             ("IHS2", "C"),
             ("Malawi Third Integrated Household Survey", "A"),
@@ -98,7 +99,6 @@ SURVEY_FAMILIES = [
             ("IHS3", "C"),
             ("Malawi Third Integrated Household Survey-Panel Subcomponent", "A"),
             ("Third Integrated Household Survey-Panel Subcomponent", "A"),
-            ("IHS3 and Panel", "AND"),
             ("Malawi Integrated Household Panel Survey", "A"),
             ("Integrated Household Panel Survey", "C"),
             ("IHPS", "C"),
@@ -136,8 +136,8 @@ SURVEY_FAMILIES = [
             ("Enquête Nationale sur les Conditions de Vie des Ménages et l'Agriculture", "A"),
             ("ECVMA", "C"),
             ("ECVM/A", "C"),
-            ("ECVMA 2011", "B"),
-            ("ECVMA 2014", "B"),
+            ("ECVMA 2011", "A"),
+            ("ECVMA 2014", "A"),
         ],
     },
 
@@ -194,7 +194,7 @@ SURVEY_FAMILIES = [
         "terms": [
             ("Uganda National Panel Survey", "A"),
             ("UNPS", "C"),
-            ("Uganda NPS", "B"),
+            ("Uganda NPS", "A"),
             ("Uganda - National Panel Survey", "A"),
             ("The Uganda National Panel survey", "A"),
             ("National Panel Survey 2005-2009", "C"),
@@ -213,22 +213,7 @@ SURVEY_FAMILIES = [
         "context_hints": ["burkina", "mali", "nigeria", "niger", "ethiopia", "uganda", "malawi", "tanzania", "high-frequency", "phone survey"],
         "terms": [
             ("High-Frequency Phone Survey", "A"),
-            ("High-Frequency Phone Survey and Burkina Faso", "AND"),
-            ("High-Frequency Phone Survey and Mali", "AND"),
-            ("High-Frequency Phone Survey and Nigeria", "AND"),
-            ("High-Frequency Phone Survey and Niger", "AND"),
-            ("High-Frequency Phone Survey and Ethiopia", "AND"),
-            ("High-Frequency Phone Survey and Uganda", "AND"),
-            ("High-Frequency Phone Survey and Malawi", "AND"),
-            ("High-Frequency Phone Survey and Tanzania", "AND"),
-            ("HFPS and Burkina Faso", "AND"),
-            ("HFPS and Mali", "AND"),
-            ("HFPS and Nigeria", "AND"),
-            ("HFPS and Niger", "AND"),
-            ("HFPS and Ethiopia", "AND"),
-            ("HFPS and Uganda", "AND"),
-            ("HFPS and Malawi", "AND"),
-            ("HFPS and Tanzania", "AND"),
+            ("HFPS", "C"),
             ("HFPS-HH", "A"),
         ],
     },
