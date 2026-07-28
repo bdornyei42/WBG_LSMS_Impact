@@ -17,15 +17,23 @@ DEPENDENCIES:
 """
 
 import argparse
+import sys
 from datetime import date
 from typing import Optional
 
 import pandas as pd
 
+# Windows consoles default to cp1252 and hard-crash on the arrows/≥ in the
+# progress output. Do this before anything prints.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
+import keywords
 from keywords import SURVEY_FAMILIES
 from fiscal_year import fy_start_date, current_and_prior_fy
 from fetchers import OpenAlexFetcher, CrossrefFetcher, BudgetExceeded
-from dedup import deduplicate, load_existing
+from dedup import deduplicate, load_existing, _split
+from relevance import rank, passes, IDENTITY_MIN, USE_MIN
 from excel_export import export_excel
 
 
@@ -83,8 +91,8 @@ def run_discovery(
 
         if cr_fetcher:
             cr_total = 0
-            for term, _tier in family["terms"]:
-                cr = cr_fetcher.search_term(term, family)
+            for term, tier, _hints, _x in keywords.iter_terms(family):
+                cr = cr_fetcher.search_term(term, family, tier)
                 all_papers.extend(cr)
                 cr_total += len(cr)
             if cr_total and verbose:
@@ -106,30 +114,59 @@ def run_discovery(
         print(f"  Dropped {n_before - len(all_papers)} papers outside "
               f"{min_year}\u2013{MAX_VALID_YEAR}", flush=True)
 
-    # Dedup before the relevance gate, so the multi-family backstop can merge a
-    # paper's separate matches before any of them is scored in isolation.
+    # Dedup before the relevance gate, so a paper's separate matches (several
+    # terms, several families) merge into one record before it's scored --
+    # multi-family/multi-term are Gate 2 signals and need that merge to exist.
     if verbose:
         print(f"\n[dedup] {len(all_papers)} raw → deduplicating...")
     clean_all, review = deduplicate(all_papers, existing_df, fuzzy_threshold)
 
+    # Gate 2a: one scoring pass for every deduped paper. Only place the two
+    # axes get set from scratch.
     if verbose:
-        print("\n[fulltext] Tier A companion pass (data-use language near LSMS)...")
+        print(f"\n[rank] scoring {len(clean_all)} deduped papers...")
+    for p in clean_all:
+        score = rank(
+            title=p.get("title", ""),
+            abstract=p.get("abstract", ""),
+            oa_type=p.get("publication_type", ""),
+            wb_affiliation=(p.get("wb_affiliation_auto") == "Yes"),
+            survey_families=_split(p.get("survey_family")),
+            survey_terms=_split(p.get("survey_terms_matched")),
+            match_tiers=_split(p.get("match_tier")),
+        )
+        p["identity_score"] = score.identity
+        p["use_score"]      = score.use
+        p["relevance_flags"] = ",".join(score.flags)
+
+    # Gate 2b: full-text pass. Targets the USE axis specifically -- a paper
+    # can have overwhelming identity evidence and still nothing showing the
+    # data was used, and that's precisely the paper worth spending a call on.
+    if verbose:
+        n_need = sum(1 for p in clean_all if (p.get("use_score") or 0) < USE_MIN)
+        print(f"\n[fulltext] Gate 2b: checking use evidence for {n_need} papers...")
     oa_fetcher.fulltext_data_use_probe(clean_all, verbose=verbose)
 
-    # Only score >= 2 enters the Papers sheet. Verbatim Tier A matches already
-    # floor at 2, so the backup sheet is now essentially reviews plus true noise.
-    RELEVANCE_CUTOFF = max(2, min_relevance_score)
     excluded_low_relevance, kept = [], []
     for p in clean_all:
-        (kept if (p.get("relevance_score") or 0) >= RELEVANCE_CUTOFF
-         else excluded_low_relevance).append(p)
+        ident, use = p.get("identity_score") or 0, p.get("use_score") or 0
+        p["relevance_score"] = ident + use          # sorting/triage only
+        ok = passes(ident, use, (p.get("relevance_flags") or "").split(","))
+        if ok and p["relevance_score"] >= min_relevance_score:
+            kept.append(p)
+        else:
+            excluded_low_relevance.append(p)
     clean = kept
 
     if verbose and excluded_low_relevance:
-        n0 = sum(1 for p in excluded_low_relevance if (p.get("relevance_score") or 0) == 0)
-        n1 = sum(1 for p in excluded_low_relevance if (p.get("relevance_score") or 0) == 1)
+        no_use   = sum(1 for p in excluded_low_relevance
+                      if (p.get("use_score") or 0) < USE_MIN
+                      and (p.get("identity_score") or 0) >= IDENTITY_MIN)
+        no_ident = sum(1 for p in excluded_low_relevance
+                      if (p.get("identity_score") or 0) < IDENTITY_MIN)
         print(f"  Set aside {len(excluded_low_relevance):,} papers "
-              f"(score 1: {n1:,} no signal | score 0: {n0:,} reviews) "
+              f"(mentions it but no evidence of use: {no_use:,} | "
+              f"not confidently our survey: {no_ident:,}) "
               f"-> 'Not Relevant (Backup)' sheet", flush=True)
 
     if verbose:
@@ -139,8 +176,13 @@ def run_discovery(
         af_fa  = sum(1 for p in clean if p.get("is_first_author_africa"))
         af_any = sum(1 for p in clean if p.get("is_any_author_africa"))
         af_str = sum(1 for p in clean if p.get("is_africa_institution_strict"))
-        r3 = sum(1 for p in clean if (p.get("relevance_score") or 0) >= 3)
-        r2 = sum(1 for p in clean if (p.get("relevance_score") or 0) >= 2)
+        # both axes are at their minimum = it just barely cleared; anything
+        # above that has corroborating evidence on at least one axis
+        borderline  = sum(1 for p in clean
+                         if (p.get("identity_score") or 0) == IDENTITY_MIN
+                         and (p.get("use_score") or 0) == USE_MIN)
+        well_backed = total - borderline
+        strong_use  = sum(1 for p in clean if (p.get("use_score") or 0) > USE_MIN)
         print("\n=== RESULTS ===")
         print(f"Unique papers (≥ 1980):            {total:,}")
         for fy in completed_fys:
@@ -152,8 +194,12 @@ def run_discovery(
             print(f"SHARE Africa (first author):        {af_fa}/{total} = {af_fa/total:.1%}")
             print(f"SHARE Africa (any author):          {af_any}/{total} = {af_any/total:.1%}")
             print(f"SHARE Africa (strict/all-SSA):      {af_str}/{total} = {af_str/total:.1%}")
-            print(f"Relevance ≥3 (survey in title/data words): {r3:,} = {r3/total:.1%}")
-            print(f"Relevance ≥2 (likely data use):            {r2:,} = {r2/total:.1%}")
+            print(f"Borderline (both axes exactly at minimum): "
+                  f"{borderline:,} = {borderline/total:.1%}")
+            print(f"Well-backed (corroborated beyond the minimum): "
+                  f"{well_backed:,} = {well_backed/total:.1%}")
+            print(f"Strong data-use evidence (use > {USE_MIN}): "
+                  f"{strong_use:,} = {strong_use/total:.1%}")
         print(f"Papers without month (FY blank):    {no_fy}")
         print(f"Fuzzy review candidates:            {len(review)}")
 
@@ -170,7 +216,8 @@ def main():
     ap.add_argument("--since-fy", metavar="FYxx",
                     help="Only fetch papers since this FY start, e.g. FY24")
     ap.add_argument("--min-relevance", type=int, default=0,
-                    help="Minimum relevance score (floor is always 2; 3 = survey-in-title only)")
+                    help="Extra floor on identity+use combined. Both axes must clear "
+                         "their own minimum regardless; this only tightens further.")
     ap.add_argument("--min-year", type=int, default=1980,
                     help="Exclude papers before this year (default 1980)")
     ap.add_argument("--merge-existing", metavar="FILE",

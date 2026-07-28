@@ -16,7 +16,8 @@ from openpyxl.chart.marker import DataPoint
 from fiscal_year import current_and_prior_fy, fy_to_year
 from matching import build_search_query
 from normalize import clean_cell
-from keywords import SURVEY_FAMILIES
+from keywords import SURVEY_FAMILIES, iter_terms
+from relevance import IDENTITY_MIN, USE_MIN
 
 OUTPUT_COLS = [
     "title", "doi", "year", "month", "pub_date", "fy",
@@ -27,7 +28,8 @@ OUTPUT_COLS = [
     "affiliations", "affiliation_countries",
     "geography_clean", "is_first_author_africa", "is_any_author_africa",
     "is_africa_institution_strict",
-    "relevance_score", "relevance_flags", "match_tier", "match_reason",
+    "identity_score", "use_score", "relevance_score", "relevance_flags",
+    "match_tier", "match_reason",
     "dataset_country", "research_topics", "abstract",
     "citation_count", "language",
     "survey_family", "survey_terms_matched", "openalex_id", "source",
@@ -127,8 +129,14 @@ def write_analysis_sheet(ws, papers, current_fy, completed_fys,
                          min_year, excluded, trend_df):
     excluded = excluded or []
     total  = len(papers)
-    n0     = sum(1 for p in excluded if (p.get("relevance_score") or 0) == 0)
-    n1     = sum(1 for p in excluded if (p.get("relevance_score") or 0) == 1)
+    # why each excluded paper was set aside -- the two axes fail for very
+    # different reasons and lumping them together hides which is doing the work
+    n_no_use   = sum(1 for p in excluded
+                    if (p.get("use_score") or 0) < USE_MIN
+                    and (p.get("identity_score") or 0) >= IDENTITY_MIN)
+    n_no_ident = sum(1 for p in excluded if (p.get("identity_score") or 0) < IDENTITY_MIN)
+    n_vetoed   = sum(1 for p in excluded
+                    if "excluded_pub_type" in (p.get("relevance_flags") or ""))
     peer   = sum(1 for p in papers if (p.get("peer_reviewed_auto") or "") == "Yes")
     wb_    = sum(1 for p in papers if (p.get("wb_affiliation_auto") or "") == "Yes")
     mult   = sum(1 for p in papers if p.get("multilateral_affiliation"))
@@ -136,10 +144,16 @@ def write_analysis_sheet(ws, papers, current_fy, completed_fys,
     af_1st = sum(1 for p in papers if p.get("is_first_author_africa"))
     af_str = sum(1 for p in papers if p.get("is_africa_institution_strict"))
     unk    = sum(1 for p in papers if p.get("geography_clean") == "Unclassified")
-    r3     = sum(1 for p in papers if (p.get("relevance_score") or 0) == 3)
-    r2     = sum(1 for p in papers if (p.get("relevance_score") or 0) == 2)
-    tA     = sum(1 for p in papers if p.get("match_tier") == "A")
-    tC     = sum(1 for p in papers if p.get("match_tier") == "C")
+    r_border = sum(1 for p in papers
+                  if (p.get("identity_score") or 0) == IDENTITY_MIN
+                  and (p.get("use_score") or 0) == USE_MIN)
+    r_backed = total - r_border
+    r_use    = sum(1 for p in papers if (p.get("use_score") or 0) > USE_MIN)
+    # match_tier can carry several tiers once a paper matched on more than one
+    # term ("A; C"), so count membership rather than equality
+    tA = sum(1 for p in papers if "A" in (p.get("match_tier") or ""))
+    tB = sum(1 for p in papers if "B" in (p.get("match_tier") or ""))
+    tC = sum(1 for p in papers if "C" in (p.get("match_tier") or ""))
 
     fy0        = completed_fys[0]
     fy0_total  = sum(1 for p in papers if p.get("fy") == fy0)
@@ -155,14 +169,16 @@ def write_analysis_sheet(ws, papers, current_fy, completed_fys,
     ws.cell(1, 4).alignment = _AL_CENTER
     r = 2
 
-    _section_row(ws, r, "── TOTALS (analysed set only: relevance score ≥ 2) ──"); r += 1
+    _section_row(ws, r, "── TOTALS (papers that both identify AND use the survey) ──"); r += 1
     _data_row(ws, r, "TOTAL PAPERS ANALYSED", "all figures below refer to this set",
               total, bold_label=True); r += 1
-    _data_row(ws, r, "  Excluded — score 1 (no LSMS signal in title/abstract)",
-              "in 'Not Relevant (Backup)' sheet", n1); r += 1
-    _data_row(ws, r, "  Excluded — score 0 (review / meta-analysis)",
-              "in 'Not Relevant (Backup)' sheet", n0); r += 1
-    _data_row(ws, r, "  Total retrieved before exclusion", "", total + n0 + n1); r += 1
+    _data_row(ws, r, "  Excluded — mentions the survey but no evidence it used the data",
+              "in 'Not Relevant (Backup)' sheet", n_no_use); r += 1
+    _data_row(ws, r, "  Excluded — not confidently our survey (name collision / other country)",
+              "in 'Not Relevant (Backup)' sheet", n_no_ident); r += 1
+    _data_row(ws, r, "  Excluded — publication type can't be an empirical use",
+              "conference abstract, dataset, paratext, erratum, letter, software", n_vetoed); r += 1
+    _data_row(ws, r, "  Total retrieved before exclusion", "", total + len(excluded)); r += 1
     _data_row(ws, r, "Peer-reviewed journal articles (auto-detected)", "", peer, pct(peer)); r += 1
     _data_row(ws, r, "World Bank–affiliated papers (auto-detected)", "", wb_, pct(wb_)); r += 1
     _data_row(ws, r, "Multilateral org–affiliated (IFPRI/FAO/CGIAR…)", "", mult, pct(mult)); r += 1
@@ -177,19 +193,34 @@ def write_analysis_sheet(ws, papers, current_fy, completed_fys,
         _data_row(ws, r, f"  {fy}", note, n, hl_count=(i == 0)); r += 1
     r += 1
 
-    _section_row(ws, r, "── HOW EACH PAPER WAS MATCHED ─────────────────────"); r += 1
-    _data_row(ws, r, "  Tier A — unambiguous survey name (e.g. 'Uganda National Panel Survey')",
-              "full-text match accepted", tA, pct(tA)); r += 1
-    _data_row(ws, r, "  Tier C — short acronym (e.g. 'IHPS', 'HFPS')",
-              "case-sensitive + country context + allowed field", tC, pct(tC)); r += 1
+    _section_row(ws, r, "── GATE 1: HOW EACH PAPER WAS MATCHED ─────────────"); r += 1
+    _data_row(ws, r, "  A paper can match on several terms at once, so these overlap."); r += 1
+    _data_row(ws, r, "  Tier A — unambiguous name (e.g. 'Uganda National Panel Survey')",
+              "full-text match accepted on its own", tA, pct(tA)); r += 1
+    _data_row(ws, r, "  Tier B — generic survey name (e.g. 'National Panel Survey')",
+              "needs a country context word + allowed field", tB, pct(tB)); r += 1
+    _data_row(ws, r, "  Tier C — short acronym (e.g. 'IHPS', 'LSMS')",
+              "country + field, plus a case check against collisions", tC, pct(tC)); r += 1
     r += 1
 
-    _section_row(ws, r, "── RELEVANCE SCORE — composition of the analysed set ──"); r += 1
-    _data_row(ws, r, "  Score 3 — survey name in title, or data words around the survey name",
-              "strongest data-use signal", r3, pct(r3)); r += 1
-    _data_row(ws, r, "  Score 2 — verbatim survey name match, data-use language, or LSMS named",
-              "", r2, pct(r2)); r += 1
-    _data_row(ws, r, "  (Scores 0 and 1 are EXCLUDED — see 'Not Relevant (Backup)' sheet)",
+    _section_row(ws, r, "── GATE 2: IDENTITY AND USE, SCORED SEPARATELY ────"); r += 1
+    _data_row(ws, r, "  Two questions, deliberately kept apart. IDENTITY: is this really one of "
+                     "our surveys, or a name collision? USE: did the authors actually work with "
+                     "the microdata, or do they only mention it? A strong signal is worth 2 "
+                     f"points, a weak one 1. Identity needs {IDENTITY_MIN}+ AND use needs "
+                     f"{USE_MIN}+ — clearing one axis alone is not enough, which is what stops a "
+                     "paper that merely name-drops the survey from being counted.", ""); r += 1
+    _data_row(ws, r, "  Use evidence must be TIED to the survey", "'we use panel data' proves "
+                     "nothing about WHICH panel — only proximity in the full text, or an "
+                     "abstract that names the survey AND describes using it, counts fully"); r += 1
+    _data_row(ws, r, "  Borderline — both axes exactly at the minimum",
+              "just cleared, worth a skim", r_border, pct(r_border)); r += 1
+    _data_row(ws, r, "  Well-backed — corroborated beyond the minimum",
+              "", r_backed, pct(r_backed)); r += 1
+    _data_row(ws, r, f"  Strong data-use evidence (use score > {USE_MIN})",
+              "first-person methods language, or cites the microdata catalogue",
+              r_use, pct(r_use)); r += 1
+    _data_row(ws, r, "  (Everything that failed either axis is in 'Not Relevant (Backup)')",
               "not counted anywhere above"); r += 1
     r += 1
 
@@ -375,15 +406,16 @@ def export_excel(papers: list, review: list, search_log: list, output_path: str,
     trend_df = _build_trend_df(papers, current_fy)
 
     _TIER_DESC = {
-        "A": "Unambiguous - full-text match accepted",
-        "C": "Short acronym - case-sensitive + country context + allowed field",
+        "A": "Unambiguous name - full-text match accepted on its own",
+        "B": "Generic survey name - needs country context + allowed field",
+        "C": "Short acronym - country context + allowed field + case check",
     }
     kw_rows = []
     for f in SURVEY_FAMILIES:
-        hints = ", ".join(f.get("context_hints") or [])
-        for term, tier in f["terms"]:
+        for term, tier, hints, excl in iter_terms(f):
             kw_rows.append((f["label"], f["region"], term, tier, _TIER_DESC[tier],
-                            build_search_query(term, tier), hints if tier == "C" else ""))
+                            build_search_query(term, tier, hints, excl),
+                            ", ".join(hints) if tier in ("B", "C") else ""))
     kw_df = pd.DataFrame(kw_rows, columns=[
         "Survey Family", "Region", "Search Term", "Match Tier",
         "Matching Rule", "OpenAlex Query Sent", "Required Context Words"])

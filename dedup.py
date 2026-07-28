@@ -11,6 +11,10 @@ import pandas as pd
 from normalize import norm_title, norm_doi
 
 
+def _split(v) -> set:
+    return {x.strip() for x in (v or "").split(";") if x.strip()}
+
+
 def deduplicate(papers: list[dict],
                 existing_df: Optional[pd.DataFrame] = None,
                 fuzzy_threshold: float = 0.88) -> tuple[list, list]:
@@ -37,15 +41,12 @@ def deduplicate(papers: list[dict],
             existing = by_title[ttl]
 
         if existing:
-            old_terms = set((existing.get("survey_terms_matched") or "").split("; "))
-            new_terms = set((p.get("survey_terms_matched") or "").split("; "))
-            existing["survey_terms_matched"] = "; ".join(sorted(old_terms | new_terms))
-            old_fam = set((existing.get("survey_family") or "").split("; "))
-            new_fam = set((p.get("survey_family") or "").split("; "))
-            existing["survey_family"] = "; ".join(sorted(old_fam | new_fam))
-            old_dc = set(x.strip() for x in (existing.get("dataset_country") or "").split(";") if x.strip())
-            new_dc = set(x.strip() for x in (p.get("dataset_country") or "").split(";") if x.strip())
-            existing["dataset_country"] = "; ".join(sorted(old_dc | new_dc))
+            # split on ";" not "; " and drop blanks -- an empty field used to
+            # merge in as a stray "" entry and come out as a leading "; "
+            for col in ("survey_terms_matched", "survey_family",
+                        "dataset_country", "match_tier"):
+                merged = _split(existing.get(col)) | _split(p.get(col))
+                existing[col] = "; ".join(sorted(merged))
             continue
 
         if oa:  by_oaid[oa]   = p
@@ -53,18 +54,9 @@ def deduplicate(papers: list[dict],
         if ttl: by_title[ttl] = p
         order.append(p)
 
-    # A paper matching 2+ distinct families is almost certainly using LSMS
-    # microdata. With A/C already flooring at 2 this rarely fires, but it stays
-    # as a backstop for any weak match that slipped through.
-    for p in order:
-        fams = [x for x in (p.get("survey_family") or "").split("; ") if x.strip()]
-        if len(set(fams)) >= 2 and (p.get("relevance_score") or 0) < 2:
-            p["relevance_score"] = 2
-            existing_flags = p.get("relevance_flags") or ""
-            add = f"multi_survey_match_{len(set(fams))}"
-            p["relevance_flags"] = (
-                add if existing_flags in ("", "no_strong_signal")
-                else f"{existing_flags},{add}")
+    # Scoring (including the multi-family/multi-term signals) happens in a
+    # single pass in relevance.rank(), called once by discover.py after this
+    # function returns -- dedup only merges records, it never touches score.
 
     review: list = []
     if existing_df is None or existing_df.empty:
