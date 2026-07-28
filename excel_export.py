@@ -149,11 +149,19 @@ def write_analysis_sheet(ws, papers, current_fy, completed_fys,
                   and (p.get("use_score") or 0) == USE_MIN)
     r_backed = total - r_border
     r_use    = sum(1 for p in papers if (p.get("use_score") or 0) > USE_MIN)
-    # match_tier can carry several tiers once a paper matched on more than one
-    # term ("A; C"), so count membership rather than equality
-    tA = sum(1 for p in papers if "A" in (p.get("match_tier") or ""))
-    tB = sum(1 for p in papers if "B" in (p.get("match_tier") or ""))
-    tC = sum(1 for p in papers if "C" in (p.get("match_tier") or ""))
+    # match_tier carries EVERY tier a paper matched on ("A; C" = it matched an
+    # unambiguous name and an acronym). Counting membership per tier therefore
+    # double-counts and sums well past 100%, which is just confusing. Report
+    # the strongest tier each paper reached -- mutually exclusive, sums to
+    # 100% -- and give the overlap its own line.
+    def _best_tier(p) -> str:
+        t = p.get("match_tier") or ""
+        return "A" if "A" in t else "B" if "B" in t else "C" if "C" in t else ""
+    tA = sum(1 for p in papers if _best_tier(p) == "A")
+    tB = sum(1 for p in papers if _best_tier(p) == "B")
+    tC = sum(1 for p in papers if _best_tier(p) == "C")
+    t_multi = sum(1 for p in papers
+                 if len([x for x in (p.get("match_tier") or "").split(";") if x.strip()]) > 1)
 
     fy0        = completed_fys[0]
     fy0_total  = sum(1 for p in papers if p.get("fy") == fy0)
@@ -194,13 +202,17 @@ def write_analysis_sheet(ws, papers, current_fy, completed_fys,
     r += 1
 
     _section_row(ws, r, "── GATE 1: HOW EACH PAPER WAS MATCHED ─────────────"); r += 1
-    _data_row(ws, r, "  A paper can match on several terms at once, so these overlap."); r += 1
+    _data_row(ws, r, "  Strongest tier each paper matched on. A paper often matches several "
+                     "terms at different tiers (e.g. 'LSMS-ISA' AND 'LSMS'); it is counted "
+                     "once here, under the strongest. These three sum to 100%."); r += 1
     _data_row(ws, r, "  Tier A — unambiguous name (e.g. 'Uganda National Panel Survey')",
               "full-text match accepted on its own", tA, pct(tA)); r += 1
     _data_row(ws, r, "  Tier B — generic survey name (e.g. 'National Panel Survey')",
               "needs a country context word + allowed field", tB, pct(tB)); r += 1
     _data_row(ws, r, "  Tier C — short acronym (e.g. 'IHPS', 'LSMS')",
               "country + field, plus a case check against collisions", tC, pct(tC)); r += 1
+    _data_row(ws, r, "  (of which: matched terms at more than one tier)",
+              "counted above under the strongest only", t_multi, pct(t_multi)); r += 1
     r += 1
 
     _section_row(ws, r, "── GATE 2: IDENTITY AND USE, SCORED SEPARATELY ────"); r += 1
