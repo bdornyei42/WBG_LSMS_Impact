@@ -103,7 +103,11 @@ FULLTEXT_PROVENANCE_WORDS = ["supported by", "funded by", "implemented by"]
 MICRODATA_CATALOG_PHRASES = ["microdata.worldbank.org", "world bank microdata"]
 
 FULLTEXT_PROXIMITY_WINDOW = 40   # words
-FULLTEXT_BATCH = 50              # max work IDs per ids.openalex pipe filter
+# 100 is OpenAlex's hard cap for values in one ids.openalex filter (101+ is a
+# 400). Halving the batch count halves the query count, and Gate 2b queries
+# are the expensive kind -- search calls bill at $1/1000 vs $0.10/1000 for a
+# plain filter, and the probe is ~80% of a run's spend.
+FULLTEXT_BATCH = 100
 # OpenAlex documents a ~4 KB URL limit and recommends splitting big OR lists
 # into chunks and unioning the returned ids client-side, which is what
 # _proximity_hits does.
@@ -495,9 +499,14 @@ class OpenAlexFetcher:
         normal practice for a good LSMS paper; it was confirmed cancelling real
         hits (ag.econ.258112) and was removed.
         """
+        # Only papers that could still change verdict. Two exclusions:
+        #  - use axis already met -> more evidence changes nothing
+        #  - identity so low that even the +1 a strong hit grants can't reach
+        #    IDENTITY_MIN -> the paper fails whatever the full text says
         candidates = [p for p in papers
                      if p.get("openalex_id")
-                     and (p.get("use_score") or 0) < relevance.USE_MIN]
+                     and (p.get("use_score") or 0) < relevance.USE_MIN
+                     and (p.get("identity_score") or 0) + relevance.WEAK >= relevance.IDENTITY_MIN]
         if not candidates:
             return 0
 
