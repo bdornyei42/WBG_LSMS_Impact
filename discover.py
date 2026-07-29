@@ -68,6 +68,17 @@ def run_discovery(
 
     oa_fetcher = OpenAlexFetcher(api_key=api_key)
     cr_fetcher = CrossrefFetcher(api_key=api_key) if use_crossref else None
+    if cr_fetcher and verbose:
+        # Measured, not guessed: of 9 deduped Crossref records for a real term,
+        # 0 could clear Gate 2 and 5 had no abstract at all. Crossref returns no
+        # OpenAlex id, so Gate 2b cannot run and the whole use axis has to come
+        # from an abstract that is frequently missing. Identity always clears
+        # (the term is in the title by construction), so these reliably land in
+        # the backup sheet. Kept because it costs nothing when off, but say so.
+        print("[warn] --crossref adds title-only matches with no full text. They can "
+              "almost never clear the use axis and will mostly land in the backup "
+              "sheet. Useful as an audit trail, not as a source of new papers.",
+              flush=True)
 
     all_papers: list = []
     search_log: list = []
