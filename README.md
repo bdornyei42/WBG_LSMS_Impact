@@ -482,7 +482,10 @@ The function that ties everything together, in order:
    `--since-fy` date filter, if any.
 2. Load the existing file for merge-dedup, if `--merge-existing` was passed.
 3. For each survey family, call `OpenAlexFetcher.search_family()` (and
-   `CrossrefFetcher.search_term()` if `--crossref` is set), collecting every
+   `CrossrefFetcher.search_term()` if `--crossref` is set) — note Crossref gives no full text and no OpenAlex id, so Gate 2b
+   cannot run on those records and their use axis must come from an abstract
+   that is often missing; measured, 0 of 9 could clear Gate 2, so treat
+   `--crossref` as an audit trail rather than a source of new papers, collecting every
    raw match plus a log entry per family/source.
 4. Drop anything published before `--min-year` (default 1980, when the LSMS
    programme began) or after the current year (allowing one year of headroom

@@ -234,6 +234,38 @@ def test_dedup_merges_without_blanks():
           clean[0]["dataset_country"] == "Uganda")
 
 
+def test_crossref_record_shape():
+    # Crossref records used to be missing match_tier/wb_affiliation_auto, which
+    # meant --crossref quietly added papers that could never pass either axis.
+    # No network: parse a synthetic Crossref item.
+    from fetchers import CrossrefFetcher
+    item = {
+        "DOI": "10.1/x", "title": ["Uses the Living Standards Measurement Study"],
+        "author": [{"given": "A", "family": "Author"}],
+        "published": {"date-parts": [[2020, 5]]},
+        "container-title": ["Journal of Development Economics"],
+        "type": "journal-article", "is-referenced-by-count": 3, "abstract": "",
+    }
+    rec = CrossrefFetcher()._parse(item, "LSMS Core Program", "Global",
+                                   "Living Standards Measurement Study", TIER_A)
+    for k in ("match_tier", "match_reason", "wb_affiliation_auto", "peer_reviewed_auto",
+              "identity_score", "use_score", "relevance_flags", "openalex_id"):
+        if k not in rec:
+            raise AssertionError(f"Crossref record missing {k!r}")
+    check("crossref records carry every field gate 2 reads", True)
+    check("crossref record keeps the term's tier", rec["match_tier"] == TIER_A)
+
+    # it must still be rankable without blowing up
+    s = relevance.rank(title=rec["title"], abstract=rec["abstract"],
+                       oa_type=rec["publication_type"], wb_affiliation=False,
+                       survey_families=["LSMS Core Program"],
+                       survey_terms=["Living Standards Measurement Study"],
+                       match_tiers=[TIER_A])
+    check("crossref record ranks without error", s.identity > 0)
+    check("crossref record cannot fake use evidence",
+          s.use < relevance.USE_MIN)
+
+
 if __name__ == "__main__":
     for fn in [v for k, v in sorted(globals().items()) if k.startswith("test_")]:
         print(f"\n{fn.__name__}")
