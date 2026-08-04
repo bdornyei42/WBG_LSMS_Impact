@@ -234,6 +234,39 @@ def test_dedup_merges_without_blanks():
           clean[0]["dataset_country"] == "Uganda")
 
 
+def test_previous_run_marks_rather_than_drops():
+    # comparing against the last export must produce a COMPLETE dataset with
+    # this run's additions marked, not an incremental diff
+    import pandas as pd
+    old = {"openalex_id": "W1", "doi": "10.1/old", "title": "An older paper on welfare"}
+    new = {"openalex_id": "W2", "doi": "10.1/new", "title": "A brand new paper on maize"}
+    prev = pd.DataFrame({"doi": ["10.1/old"], "title": ["An older paper on welfare"]})
+    clean, _ = deduplicate([dict(old), dict(new)], prev)
+    check("nothing is dropped when comparing to a previous run", len(clean) == 2)
+    by_doi = {p["doi"]: p for p in clean}
+    check("a paper already in the previous export is marked not-new",
+          by_doi["10.1/old"]["is_new"] == "No")
+    check("a paper this run found is marked new", by_doi["10.1/new"]["is_new"] == "Yes")
+
+    # Titles in this literature are formulaic, so a shared shape must not by
+    # itself demote a paper with its own DOI to "Review" (0.83 similarity
+    # here). A near-identical title still should, which the next case checks.
+    sim = {"openalex_id": "W3", "doi": "10.1/sim",
+           "title": "An older paper on welfare in Malawi"}
+    clean2, _ = deduplicate([sim], prev)
+    check("a new DOI is not flagged just for a similarly shaped title",
+          clean2[0]["is_new"] == "Yes")
+
+    almost = {"openalex_id": "W4", "doi": "10.1/almost",
+              "title": "An older paper on welfares"}          # one character apart
+    clean3, rev3 = deduplicate([almost], prev)
+    check("a near-identical title is still flagged for review",
+          clean3[0]["is_new"] == "Review" and len(rev3) == 1)
+
+    clean4, _ = deduplicate([dict(old)], None)
+    check("with no previous run nothing claims to be new", clean4[0]["is_new"] == "")
+
+
 def test_crossref_record_shape():
     # Crossref records used to be missing match_tier/wb_affiliation_auto, which
     # meant --crossref quietly added papers that could never pass either axis.

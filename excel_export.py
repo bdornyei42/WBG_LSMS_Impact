@@ -28,6 +28,7 @@ OUTPUT_COLS = [
     "affiliations", "affiliation_countries",
     "geography_clean", "is_first_author_africa", "is_any_author_africa",
     "is_africa_institution_strict",
+    "is_new",
     "identity_score", "use_score", "relevance_score", "relevance_flags",
     "match_tier", "match_reason",
     "dataset_country", "research_topics", "abstract",
@@ -47,6 +48,8 @@ COL_WIDTHS = {
 C_DARK  = "1F5C99"
 C_HL    = "C5D9F1"
 C_WHITE = "FFFFFF"
+C_NEW    = "DCEEF9"   # rows added by this run
+C_REVIEW = "FFF2CC"   # close title match to the previous export, needs a human
 
 _THIN_BLACK = Side(style="thin", color="000000")
 _BORDER_ALL = Border(left=_THIN_BLACK, right=_THIN_BLACK,
@@ -396,6 +399,39 @@ def write_analysis_sheet(ws, papers, current_fy, completed_fys,
     ws.add_chart(pie, "E47")
 
 
+def _shade_new_rows(ws, df) -> int:
+    """Tint whole rows this run added, so the delta is visible at a glance."""
+    if "is_new" not in df.columns:
+        return 0
+    fills = {"Yes": PatternFill("solid", start_color=C_NEW, end_color=C_NEW),
+             "Review": PatternFill("solid", start_color=C_REVIEW, end_color=C_REVIEW)}
+    ncols = len(df.columns)
+    n = 0
+    for offset, val in enumerate(df["is_new"].tolist()):
+        fill = fills.get(str(val).strip())
+        if not fill:
+            continue
+        for col in range(1, ncols + 1):
+            ws.cell(offset + 2, col).fill = fill      # +2: 1-indexed, past header
+        n += 1
+    return n
+
+
+def export_csv(papers: list, path) -> str:
+    """Same rows and column order as the Papers sheet, for charts and re-use."""
+    def _fy_key(p):
+        return (-fy_to_year(p.get("fy") or ""), (p.get("title") or "").lower())
+
+    df = pd.DataFrame(sorted(papers, key=_fy_key))
+    for c in OUTPUT_COLS:
+        if c not in df.columns:
+            df[c] = None
+    df = df[[c for c in OUTPUT_COLS if c in df.columns] +
+            [c for c in df.columns if c not in OUTPUT_COLS and not c.startswith("_")]]
+    df.to_csv(path, index=False, encoding="utf-8-sig")   # BOM so Excel opens it clean
+    return str(path)
+
+
 def export_excel(papers: list, review: list, search_log: list, output_path: str,
                  min_year: int = 1980, excluded=None):
     if not papers:
@@ -469,6 +505,7 @@ def export_excel(papers: list, review: list, search_log: list, output_path: str,
         _style(ws_p)
         for i, cn in enumerate(df.columns, 1):
             ws_p.column_dimensions[get_column_letter(i)].width = COL_WIDTHS.get(cn, 13)
+        _shade_new_rows(ws_p, df)
 
         if excluded and BACKUP in writer.sheets:
             ws_b = writer.sheets[BACKUP]
