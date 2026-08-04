@@ -267,6 +267,45 @@ def test_previous_run_marks_rather_than_drops():
     check("with no previous run nothing claims to be new", clean4[0]["is_new"] == "")
 
 
+def test_update_mode_reuses_prior_scores():
+    # An update run must still SEARCH everything (OpenAlex indexes papers long
+    # after publication, and its from_created_date filter needs a paid plan, so
+    # a date window would lose late arrivals permanently). What it skips is the
+    # expensive full-text probe for papers already scored.
+    import tempfile, os
+    from dedup import load_previous_scores
+    from excel_export import export_excel
+
+    def rec(i, use):
+        return {"title": f"Paper {i}", "doi": f"10.1/{i}",
+                "openalex_id": f"https://openalex.org/W{i}", "fy": "FY24", "year": 2024,
+                "identity_score": 3, "use_score": use, "relevance_score": 3 + use,
+                "relevance_flags": "admitted_tier_a", "match_tier": "A",
+                "survey_family": "Uganda UNPS", "publication_type": "article",
+                "survey_terms_matched": "Uganda National Panel Survey",
+                "wb_affiliation_auto": "No", "abstract": "", "is_new": ""}
+
+    tmp = os.path.join(tempfile.mkdtemp(), "LSMS_papers_prev.xlsx")
+    export_excel([rec(1, 2), rec(2, 2)], [], [], tmp, excluded=[rec(3, 0)])
+    scores = load_previous_scores(tmp)
+
+    check("prior scores load from a previous export", len(scores) == 3)
+    check("papers the last run REJECTED are remembered too, so they aren't re-probed",
+          "https://openalex.org/W3" in scores)
+    check("the stored score comes back intact",
+          scores["https://openalex.org/W1"]["use_score"] == 2)
+
+    # only genuinely new work should reach the probe
+    skip = set(scores)
+    fresh = [rec(1, 0), rec(3, 0), rec(9, 0)]          # W9 is new
+    payable = [p for p in fresh
+               if p["openalex_id"] not in skip
+               and (p["use_score"] or 0) < relevance.USE_MIN
+               and (p["identity_score"] or 0) + relevance.WEAK >= relevance.IDENTITY_MIN]
+    check("only unseen papers cost anything to check",
+          [p["doi"] for p in payable] == ["10.1/9"])
+
+
 def test_crossref_record_shape():
     # Crossref records used to be missing match_tier/wb_affiliation_auto, which
     # meant --crossref quietly added papers that could never pass either axis.

@@ -142,19 +142,40 @@ class App:
         tk.Label(frame, text="Get a free key at openalex.org/settings/api",
                  font=("Segoe UI", 8), bg=BG, fg=GRAY).pack(anchor="w")
 
-        tk.Label(self.body, text="", bg=BG).pack(pady=4)
+        tk.Label(self.body, text="", bg=BG).pack(pady=2)
+
+        # Update vs full. Default to update: it searches just as widely, it only
+        # avoids paying again to re-check papers already scored.
+        mode = tk.Frame(self.body, bg=BG)
+        mode.pack(pady=(0, 2))
+        self.update_var = tk.BooleanVar(value=bool(self.cfg.get("update_only", True)))
+        tk.Checkbutton(mode, variable=self.update_var, bg=BG, activebackground=BG,
+                       text="Update the existing results (recommended)",
+                       font=("Segoe UI", 9, "bold"), fg=DARK, selectcolor=BG,
+                       command=self._mode_changed).pack(anchor="w")
+        self.mode_hint = tk.Label(mode, text="", font=("Segoe UI", 8), bg=BG, fg=GRAY,
+                                  wraplength=360, justify="left")
+        self.mode_hint.pack(anchor="w", padx=(22, 0))
+        self._mode_changed()
 
         self.run_btn = tk.Button(self.body, text="Run analysis", font=("Segoe UI", 11, "bold"),
                                   bg=BLUE, fg="white", activebackground="#255BB5",
                                   activeforeground="white", relief="flat", padx=18, pady=8,
                                   command=self.start_run)
-        self.run_btn.pack(pady=10)
+        self.run_btn.pack(pady=8)
 
-        tk.Label(self.body, text="Takes about 5 minutes  \u2022  costs roughly $0.45\u2013$0.48\n"
-                                  "(2 runs covered by OpenAlex's free daily budget)",
-                 font=("Segoe UI", 8), bg=BG, fg=GRAY, justify="center").pack()
+    def _mode_changed(self):
+        if self.update_var.get():
+            self.mode_hint.config(
+                text="Finds new papers and adds them to your latest results file. "
+                     "New rows are highlighted. Faster, and costs a few cents.")
+        else:
+            self.mode_hint.config(
+                text="Rebuilds and re-checks every paper from scratch. Takes about "
+                     "5 minutes and costs roughly $1.60. Worth doing occasionally, "
+                     "or after the matching rules change.")
 
-    def show_running(self):
+    def show_running(self, update_only=True):
         self._clear_body()
         frame = tk.Frame(self.body, bg=BG)
         frame.pack(expand=True)
@@ -163,9 +184,13 @@ class App:
         self.spinner.pack(pady=(20, 14))
         self.spinner.start()
 
-        tk.Label(frame, text="Running analysis\u2026", font=("Segoe UI", 12, "bold"),
-                 bg=BG, fg=DARK).pack()
-        tk.Label(frame, text="Searching OpenAlex and building the workbook. Usually about 5 minutes.",
+        tk.Label(frame, text="Updating results\u2026" if update_only else "Running full analysis\u2026",
+                 font=("Segoe UI", 12, "bold"), bg=BG, fg=DARK).pack()
+        tk.Label(frame,
+                 text=("Searching OpenAlex for papers not already in your results."
+                       if update_only else
+                       "Searching OpenAlex and rebuilding the workbook from scratch. "
+                       "Usually about 5 minutes."),
                  font=("Segoe UI", 8), bg=BG, fg=GRAY, wraplength=380, justify="center").pack(pady=(4, 0))
 
         self.status_var.set("Do not close this window while the analysis is running.")
@@ -219,10 +244,13 @@ class App:
                                   "Make sure this launcher sits in the same folder as discover.py.")
             return
 
-        save_config({"api_key": key})
-        self.show_running()
+        update_only = bool(self.update_var.get())
+        save_config({"api_key": key, "update_only": update_only})
+        self.show_running(update_only)
 
         cmd = [sys.executable, DISCOVER_SCRIPT, "--api-key", key]
+        if update_only:
+            cmd.append("--update")
         threading.Thread(target=self._run_subprocess, args=(cmd,), daemon=True).start()
 
     def _run_subprocess(self, cmd):

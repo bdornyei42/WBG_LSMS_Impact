@@ -476,7 +476,8 @@ class OpenAlexFetcher:
             hits |= self._ids_matching(f"({clauses})", short_ids)
         return hits
 
-    def fulltext_data_use_probe(self, papers: list[dict], verbose: bool = True) -> int:
+    def fulltext_data_use_probe(self, papers: list[dict], verbose: bool = True,
+                                skip_ids: Optional[set] = None) -> int:
         """
         Gate 2b: the full-text half of the use axis. Runs for every paper whose
         USE score is still short of relevance.USE_MIN -- note that's the use
@@ -503,8 +504,10 @@ class OpenAlexFetcher:
         #  - use axis already met -> more evidence changes nothing
         #  - identity so low that even the +1 a strong hit grants can't reach
         #    IDENTITY_MIN -> the paper fails whatever the full text says
+        skip_ids = skip_ids or set()
         candidates = [p for p in papers
                      if p.get("openalex_id")
+                     and p.get("openalex_id") not in skip_ids
                      and (p.get("use_score") or 0) < relevance.USE_MIN
                      and (p.get("identity_score") or 0) + relevance.WEAK >= relevance.IDENTITY_MIN]
         if not candidates:
