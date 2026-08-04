@@ -248,20 +248,21 @@ def test_previous_run_marks_rather_than_drops():
           by_doi["10.1/old"]["is_new"] == "No")
     check("a paper this run found is marked new", by_doi["10.1/new"]["is_new"] == "Yes")
 
-    # Titles in this literature are formulaic, so a shared shape must not by
-    # itself demote a paper with its own DOI to "Review" (0.83 similarity
-    # here). A near-identical title still should, which the next case checks.
+    # Matching is exact on purpose. Fuzzy title comparison ran every new title
+    # against every old one and never finished on a real corpus, and it bought
+    # nothing: a paper keeps its OpenAlex id between runs.
     sim = {"openalex_id": "W3", "doi": "10.1/sim",
            "title": "An older paper on welfare in Malawi"}
     clean2, _ = deduplicate([sim], prev)
-    check("a new DOI is not flagged just for a similarly shaped title",
+    check("a different paper with a similar title is new, not flagged",
           clean2[0]["is_new"] == "Yes")
 
-    almost = {"openalex_id": "W4", "doi": "10.1/almost",
-              "title": "An older paper on welfares"}          # one character apart
-    clean3, rev3 = deduplicate([almost], prev)
-    check("a near-identical title is still flagged for review",
-          clean3[0]["is_new"] == "Review" and len(rev3) == 1)
+    # the id is what identifies a paper across runs, even if the title moved
+    prev_ids = pd.DataFrame({"openalex_id": ["W7"], "doi": [""], "title": ["Original wording"]})
+    moved = {"openalex_id": "W7", "doi": "10.1/x", "title": "Completely reworded title"}
+    clean3, _ = deduplicate([moved], prev_ids)
+    check("a known OpenAlex id is recognised however the title changed",
+          clean3[0]["is_new"] == "No")
 
     clean4, _ = deduplicate([dict(old)], None)
     check("with no previous run nothing claims to be new", clean4[0]["is_new"] == "")
