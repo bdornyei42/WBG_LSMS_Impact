@@ -110,6 +110,39 @@ def deduplicate(papers: list[dict],
     return order, review
 
 
+def load_previous_scores(path: str) -> dict:
+    """
+    openalex_id -> the scores a previous run already worked out.
+
+    Reads BOTH result sheets: a paper the last run rejected is still a paper we
+    have already paid to check, and re-probing it would defeat the point of an
+    update run.
+    """
+    p = Path(path)
+    if not p.exists():
+        return {}
+    want = ("identity_score", "use_score", "relevance_flags")
+    frames = []
+    if p.suffix.lower() == ".csv":
+        frames.append(pd.read_csv(path))
+    else:
+        for sheet in ("Papers", "Not Relevant (Backup)"):
+            try:
+                frames.append(pd.read_excel(path, sheet_name=sheet))
+            except Exception:
+                continue
+    out: dict = {}
+    for df in frames:
+        if "openalex_id" not in df.columns or not any(c in df.columns for c in want):
+            continue
+        for rec in df.to_dict("records"):
+            oa = str(rec.get("openalex_id") or "").strip()
+            if not oa or oa.lower() == "nan":
+                continue
+            out[oa] = {k: rec.get(k) for k in want}
+    return out
+
+
 def load_existing(path: str) -> pd.DataFrame:
     p = Path(path)
     if not p.exists():

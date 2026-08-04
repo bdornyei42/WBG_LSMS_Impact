@@ -35,7 +35,7 @@ import keywords
 from keywords import SURVEY_FAMILIES
 from fiscal_year import fy_start_date, current_and_prior_fy
 from fetchers import OpenAlexFetcher, CrossrefFetcher, BudgetExceeded
-from dedup import deduplicate, load_existing, _split
+from dedup import deduplicate, load_existing, load_previous_scores, _split
 from relevance import rank, passes, IDENTITY_MIN, USE_MIN
 from excel_export import export_excel, export_csv
 import charts
@@ -58,6 +58,7 @@ def run_discovery(
     use_crossref: bool = False,
     merge_existing: Optional[str] = None,
     no_merge: bool = False,
+    update_only: bool = False,
     output_path: Optional[str] = None,
     fuzzy_threshold: float = 0.88,
     verbose: bool = True,
@@ -89,6 +90,14 @@ def run_discovery(
         elif not merge_existing and verbose:
             print("[info] No earlier export found, so nothing is marked as new.")
     existing_df = load_existing(merge_existing) if merge_existing else pd.DataFrame()
+    prev_scores = load_previous_scores(merge_existing) if (merge_existing and update_only) else {}
+    if update_only and not prev_scores:
+        print("[warn] Update mode needs a previous export to build on and none was usable. "
+              "Running the full analysis instead.", flush=True)
+        update_only = False
+    elif update_only and verbose:
+        print(f"[info] Update mode: {len(prev_scores):,} papers already scored, so only "
+              "new ones cost anything to check.")
 
     oa_fetcher = OpenAlexFetcher(api_key=api_key)
     cr_fetcher = CrossrefFetcher(api_key=api_key) if use_crossref else None
@@ -174,13 +183,39 @@ def run_discovery(
         p["use_score"]      = score.use
         p["relevance_flags"] = ",".join(score.flags)
 
+    # UPDATE MODE. Gate 1 still runs in full, so nothing is missed -- OpenAlex
+    # indexes papers long after they're published, and its from_created_date
+    # filter needs a paid plan, so a date window would silently lose late
+    # arrivals forever. What we skip instead is the expensive part: a paper the
+    # last run already scored keeps that score and never gets re-probed. Gate 2b
+    # is roughly 80% of a run's cost, so this is where the saving comes from.
+    reused = 0
+    if update_only and prev_scores:
+        for p in clean_all:
+            prior = prev_scores.get(p.get("openalex_id") or "")
+            if not prior:
+                continue
+            if prior.get("use_score") is not None and str(prior["use_score"]).strip() != "":
+                try:
+                    p["use_score"] = int(float(prior["use_score"]))
+                    p["identity_score"] = int(float(prior["identity_score"]))
+                except (TypeError, ValueError):
+                    continue
+                flags = prior.get("relevance_flags")
+                p["relevance_flags"] = "" if flags is None or str(flags) == "nan" else str(flags)
+                reused += 1
+        if verbose:
+            print(f"  Reused scores for {reused:,} papers already checked by a previous run")
+
     # Gate 2b: full-text pass. Targets the USE axis specifically -- a paper
     # can have overwhelming identity evidence and still nothing showing the
     # data was used, and that's precisely the paper worth spending a call on.
     if verbose:
         n_need = sum(1 for p in clean_all if (p.get("use_score") or 0) < USE_MIN)
         print(f"\n[fulltext] Gate 2b: checking use evidence for {n_need} papers...")
-    oa_fetcher.fulltext_data_use_probe(clean_all, verbose=verbose)
+    oa_fetcher.fulltext_data_use_probe(
+        clean_all, verbose=verbose,
+        skip_ids=set(prev_scores) if update_only else None)
 
     excluded_low_relevance, kept = [], []
     for p in clean_all:
@@ -274,6 +309,10 @@ def main():
                          "most recent LSMS_papers_*.xlsx")
     ap.add_argument("--no-merge", action="store_true",
                     help="Don't compare against any earlier export (nothing marked new)")
+    ap.add_argument("--update", action="store_true",
+                    help="Update run: still searches everything, but only spends full-text "
+                         "checks on papers the previous export hasn't already scored. Much "
+                         "cheaper, and loses no coverage. Omit to rescore everything.")
     ap.add_argument("--output", metavar="FILE", help="Output Excel path")
     ap.add_argument("--crossref", action="store_true",
                     help="Also search Crossref (title-only, slower)")
@@ -287,7 +326,7 @@ def main():
             api_key=args.api_key, min_year=args.min_year,
             min_relevance_score=args.min_relevance, since_fy=args.since_fy,
             use_crossref=args.crossref, merge_existing=args.merge_existing,
-            no_merge=args.no_merge,
+            no_merge=args.no_merge, update_only=args.update,
             output_path=args.output, fuzzy_threshold=args.fuzzy_threshold,
             verbose=not args.quiet, test_mode=args.test)
     except BudgetExceeded as e:
