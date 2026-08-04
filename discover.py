@@ -17,8 +17,11 @@ DEPENDENCIES:
 """
 
 import argparse
+import glob
+import os
 import sys
 from datetime import date
+from pathlib import Path
 from typing import Optional
 
 import pandas as pd
@@ -34,7 +37,17 @@ from fiscal_year import fy_start_date, current_and_prior_fy
 from fetchers import OpenAlexFetcher, CrossrefFetcher, BudgetExceeded
 from dedup import deduplicate, load_existing, _split
 from relevance import rank, passes, IDENTITY_MIN, USE_MIN
-from excel_export import export_excel
+from excel_export import export_excel, export_csv
+import charts
+
+
+def latest_previous_export(exclude: Optional[str] = None) -> Optional[str]:
+    """Most recent LSMS_papers_*.xlsx in the working directory, if any."""
+    exclude = os.path.abspath(exclude) if exclude else None
+    files = [f for f in glob.glob("LSMS_papers_*.xlsx")
+             if not os.path.basename(f).startswith("~$")
+             and os.path.abspath(f) != exclude]
+    return max(files, key=os.path.getmtime) if files else None
 
 
 def run_discovery(
@@ -44,6 +57,7 @@ def run_discovery(
     min_relevance_score: int = 0,
     use_crossref: bool = False,
     merge_existing: Optional[str] = None,
+    no_merge: bool = False,
     output_path: Optional[str] = None,
     fuzzy_threshold: float = 0.88,
     verbose: bool = True,
@@ -64,6 +78,16 @@ def run_discovery(
         stamp = __import__("datetime").datetime.now().strftime("%Y%m%d_%H%M%S")
         output_path = f"LSMS_papers{sfx}_{stamp}.xlsx"
 
+    # The methodology is settled, so every run is now checked against the last
+    # one by default: papers already known are marked, papers this run added
+    # are highlighted. Pass --no-merge for a clean run with no comparison.
+    if merge_existing is None and not no_merge:
+        merge_existing = latest_previous_export(output_path)
+        if merge_existing and verbose:
+            print(f"[info] Cross-checking against {Path(merge_existing).name} "
+                  "(use --no-merge to skip)")
+        elif not merge_existing and verbose:
+            print("[info] No earlier export found, so nothing is marked as new.")
     existing_df = load_existing(merge_existing) if merge_existing else pd.DataFrame()
 
     oa_fetcher = OpenAlexFetcher(api_key=api_key)
@@ -213,9 +237,23 @@ def run_discovery(
                   f"{strong_use:,} = {strong_use/total:.1%}")
         print(f"Papers without month (FY blank):    {no_fy}")
         print(f"Fuzzy review candidates:            {len(review)}")
+        n_new = sum(1 for p in clean if p.get("is_new") == "Yes")
+        if any(p.get("is_new") for p in clean):
+            print(f"New since the previous export:      {n_new:,}"
+                  f"  (highlighted in the workbook)")
 
     export_excel(clean, review, search_log, output_path, min_year=min_year,
                  excluded=excluded_low_relevance)
+
+    # CSV of the same rows, and the charts are built from that file rather
+    # than from memory so what's plotted is provably what was exported.
+    csv_path = Path(output_path).with_suffix(".csv")
+    export_csv(clean, csv_path)
+    if verbose:
+        print(f"[export] {len(clean)} papers -> {csv_path.name}")
+
+    current_fy, _ = current_and_prior_fy()
+    charts.build_all(csv_path, current_fy=current_fy, verbose=verbose)
     return clean
 
 
@@ -232,7 +270,10 @@ def main():
     ap.add_argument("--min-year", type=int, default=1980,
                     help="Exclude papers before this year (default 1980)")
     ap.add_argument("--merge-existing", metavar="FILE",
-                    help="Existing Excel/CSV; new papers deduped against it")
+                    help="Compare against this Excel/CSV instead of auto-picking the "
+                         "most recent LSMS_papers_*.xlsx")
+    ap.add_argument("--no-merge", action="store_true",
+                    help="Don't compare against any earlier export (nothing marked new)")
     ap.add_argument("--output", metavar="FILE", help="Output Excel path")
     ap.add_argument("--crossref", action="store_true",
                     help="Also search Crossref (title-only, slower)")
@@ -246,6 +287,7 @@ def main():
             api_key=args.api_key, min_year=args.min_year,
             min_relevance_score=args.min_relevance, since_fy=args.since_fy,
             use_crossref=args.crossref, merge_existing=args.merge_existing,
+            no_merge=args.no_merge,
             output_path=args.output, fuzzy_threshold=args.fuzzy_threshold,
             verbose=not args.quiet, test_mode=args.test)
     except BudgetExceeded as e:

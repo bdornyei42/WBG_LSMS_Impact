@@ -60,6 +60,9 @@ def deduplicate(papers: list[dict],
 
     review: list = []
     if existing_df is None or existing_df.empty:
+        # nothing to compare against, so nothing can be called "new"
+        for p in order:
+            p["is_new"] = ""
         return order, review
 
     ex_dois, ex_titles = set(), []
@@ -70,27 +73,41 @@ def deduplicate(papers: list[dict],
             ex_titles = [norm_title(str(v)) for v in existing_df[col].dropna()]
             break
 
+    # Every paper this run found stays in the output. The prior file decides
+    # what gets MARKED as new, it never decides what gets dropped -- the point
+    # of comparing against it is a complete, current dataset in which this
+    # run's additions are visible, not an incremental diff that has to be
+    # stitched back together by hand.
     ex_title_set = set(ex_titles)
-    clean: list = []
     for p in order:
         doi = norm_doi(p.get("doi", ""))
         ttl = norm_title(p.get("title", ""))
-        if doi and doi in ex_dois:
-            continue
-        if ttl and ttl in ex_title_set:
+        if (doi and doi in ex_dois) or (ttl and ttl in ex_title_set):
+            p["is_new"] = "No"
             continue
         if ttl and ex_titles:
+            # A DOI the previous export doesn't have is strong evidence this is
+            # a genuinely different paper, so a mere family resemblance in the
+            # title shouldn't override it -- only a near-exact one should.
+            # Without that, titles in this literature are formulaic enough
+            # ("X and household consumption in rural Uganda") that roughly half
+            # of real additions got flagged for review against a corpus of any
+            # size, which makes the flag useless.
+            threshold = 0.95 if (doi and ex_dois) else fuzzy_threshold
             best = max(
                 (difflib.SequenceMatcher(None, ttl, et).ratio()
                  for et in ex_titles if abs(len(et) - len(ttl)) < 40),
                 default=0.0)
-            if best >= fuzzy_threshold:
+            if best >= threshold:
+                # close but not identical: probably the same paper with a
+                # reworded title, so flag it for a human rather than guessing
                 p["_fuzzy_score"] = round(best, 3)
+                p["is_new"] = "Review"
                 review.append(p)
                 continue
-        clean.append(p)
+        p["is_new"] = "Yes"
 
-    return clean, review
+    return order, review
 
 
 def load_existing(path: str) -> pd.DataFrame:
