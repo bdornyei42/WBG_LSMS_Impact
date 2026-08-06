@@ -8,3 +8,4 @@ tqdm>=4.66.0
 
 # Optional: ScrapeOps proxy for Scholar (avoids CAPTCHA)
 # scrapeops-scrapy>=0.0.4
+matplotlib>=3.7.0

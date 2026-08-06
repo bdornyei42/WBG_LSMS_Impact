@@ -229,15 +229,42 @@ Panel Survey"` cannot plausibly appear in an unrelated paper. `"IHS"` (three
 letters) appears constantly in completely unrelated contexts. One matching
 rule applied to both either loses real papers or lets garbage through.
 
+### Stemming: off at Gate 1, on at Gate 2b
+
+This is the single most consequential setting in the whole pipeline, so it's
+worth stating plainly. OpenAlex stems and removes stop words by default, which
+means a search for `LSMS` also matches `LSM` — and `LSM` is the standard
+abbreviation for *land-surface model* and *log-structured merge-tree*. Stemmed,
+the bare `"LSMS"` query returned **13,506 hits for a single fiscal year**
+(26,592 before the country gate was tightened). Unstemmed, the same query
+returns **698**.
+
+Queries therefore go out via OpenAlex's `search.exact` parameter, which
+bypasses stemming. (OpenAlex's `.no_stem` filter was added in May 2024 and then
+withdrawn as too expensive to operate — it is still listed as a valid field
+name but returns `400`, so `search.exact` is the supported route.)
+
+Two caveats worth knowing:
+
+- `search.exact` is still **case-insensitive** — `LSMs` and `LSMS` are the same
+  token to the server. That residual collision is what the Tier C case check
+  catches locally.
+- **Gate 2b deliberately keeps stemming on.** Its queries always carry an
+  `ids.openalex:` filter restricting them to an explicit list of already-
+  admitted candidates, so a stem collision physically cannot drag in an
+  unrelated paper the way it can at Gate 1. What stemming buys there is verb
+  variants — `supported by` also matching `supports` — and that matters:
+  unstemmed, the provenance probe went from 89 hits to 0 and the flagged-set
+  score dropped from 24/32 to 23/32.
+
 Every keyword in `keywords.py` therefore carries an explicit tier, reviewed
 and assigned by the LSMS team directly (not guessed by an algorithm):
 
 | Tier | Rule |
 |---|---|
-| **A** — unambiguous | Full-text match accepted. No requirement that the term appear in the title or abstract specifically, and no subject-matter filter. Most discovered papers come from this tier: a paper often names its data source in the Methods section, not the abstract, and OpenAlex's search indexes the full text. |
-| **B** — medium | The term must appear in the title or abstract (case-insensitive, whole-word match). |
-| **C** — short/ambiguous | Strictest tier. Requires (a) a **case-sensitive** whole-word match — this is what stops `IHPS` (a survey acronym) from matching `IHPs`, the plural of the unrelated medical term "Individual Health Plan" — **and** (b) a country/context word from the survey family nearby (e.g. `"IHPS"` needs `"malawi"` present somewhere in the text) **and** (c) the paper isn't in an academic field where a household survey obviously couldn't be the data source. |
-| **AND** | The keyword is actually two concepts joined by "and" (e.g. `"HFPS and Burkina Faso"`). Split into a boolean query; both halves must independently match. |
+| **A** — unambiguous | The name identifies the survey on its own: it contains a country (`"Tanzania National Panel Survey"`) or an acronym that can't plausibly mean anything else (`"LSMS-ISA"`, `"TZNPS"`). A full-text match is accepted as-is — a paper often names its data source in the Methods section, not the abstract, and OpenAlex indexes full text. |
+| **B** — generic name | A real survey name, but the words *describe* the survey rather than identify it, and other countries or programmes use the same phrase — `"National Panel Survey"` (Tanzania and Uganda both), `"High-Frequency Phone Survey"` (every agency ran one during COVID), `"Living Standards Survey"` (ordinary prose). Requires a country context word somewhere in the document **and** an allowed field. Case-insensitive: casing carries no information in a phrase. |
+| **C** — short acronym | `"IHPS"`, `"LSMS"`, `"UNPS"`. Same country + field gating as B, plus a case check: OpenAlex case-folds and stems server-side (so `"LSMS"` also retrieves `"LSM"`), and casing is the only local defence against a collision. If the acronym appears in the title/abstract with the *wrong* case (`IHPs`, the plural of the unrelated medical term), that's a positive refutation and the paper is dropped; if it doesn't appear there at all we can't tell, and the query's own country+field gating stands. |
 
 Key functions:
 - `_build_search_query(term, tier)` — builds the actual string sent to
@@ -257,45 +284,88 @@ Key functions:
   to the output as `match_tier` / `match_reason`, so every inclusion decision
   is auditable after the fact).
 
-### 9. Relevance scoring — `_relevance_score()`
+### 9. Gate 2 — relevance, scored on two axes (`relevance.py`)
 
-Separate from the search-filter tier above. Once a paper has passed the search
-filter, this function scores how *likely* it is that the paper actually **uses**
-the survey's data (as opposed to merely mentioning the survey in passing, or
-being a literature review that cites many papers that used it). Score is 0–3:
+Gate 1 above only answers *did we find the name*. Gate 2 answers the two
+questions that actually decide whether a paper belongs in the tracker, and it
+keeps them deliberately separate:
 
-- **3** — the survey name appears in the paper's title. Near-certain.
-- **2** — any of: the survey name appears in the abstract; explicit data-use
-  language is present ("we use", "drawing on data from", "nationally
-  representative", etc. — see `_USE_PATTERNS`); the LSMS programme or World
-  Bank is named anywhere; three or more empirical-paper signal words appear
-  (regression, household, poverty, consumption, etc. — see
-  `_EMPIRICAL_SIGNALS`); or a fuzzy/grammatical-variant match of the survey
-  name is found close to data-use vocabulary in the abstract (see the
-  proximity check below).
-- **1** — some weak evidence, or none of the above fired.
-- **0** — the abstract matches a genuine literature-review/meta-analysis
-  pattern (see `_REVIEW_PATTERNS` — deliberately narrow, so a paper that merely
-  "provides an overview of" its own survey isn't penalised; only true
-  systematic reviews and meta-analyses are caught here).
+- **IDENTITY** — is this really one of our surveys, or a name collision / a
+  different country's survey that shares a phrase?
+- **USE** — did the authors work with the microdata, or do they only *mention*
+  it: cite it, credit it, list it as related work?
 
-**The proximity/fuzzy match** (`_fuzzy_survey_pattern`,
-`_proximity_data_use_match`) exists to catch a specific failure mode: a paper's
-abstract sometimes uses a grammatical variant of the exact keyword string that
-matched it — for example the keyword `"Ethiopia Rural Socioeconomic Survey"`
-matched a paper whose own abstract says `"the Ethiopian Rural Socioeconomic
-Survey"` (adjective form, one letter different), which a literal substring
-check misses entirely even though a human reader sees an obvious data-use
-statement. The fix: build a regex that matches each word of the survey term as
-a *prefix* rather than requiring an exact match (so "Ethiopia" also matches
-"Ethiopian", "Uganda" also matches "Ugandan", and so on for all eight ISA
-countries), locate that fuzzy match in the abstract, and check the ~175
-characters on either side for common data-use vocabulary.
+A strong signal is worth 2 points and a weak one 1. **Identity needs 2+ AND use
+needs 2+** — clearing one axis alone is not enough.
 
-Only papers scoring 2 or higher enter the main "Papers" sheet. Scores 0 and 1
-are written to the "Not Relevant (Backup)" sheet instead — kept, not deleted,
-but excluded from every headline metric, both charts, and the total paper
-count on the Analysis sheet.
+Collapsing these into a single number is what lets a paper pass on identity
+alone. Name the survey three times in an abstract, add a World Bank co-author,
+and a pure literature review outscores a real empirical paper. Keeping the axes
+apart makes "mentions but does not use" structurally unable to pass, which is
+the entire point of the gate.
+
+**Tied vs untied use evidence.** "We use household survey data" proves the
+authors used *some* data — not *ours*. Only evidence tying the use language to
+the survey counts fully: full-text proximity (Gate 2b, below, requires the two
+within 40 words of each other), or an abstract that both names the survey and
+describes using data. Untied evidence (generic empirical vocabulary, data-use
+language with no survey named) is capped at 1 point total, so it can corroborate
+a real signal but never carry the axis by itself.
+
+**Publication type** is the one absolute veto: the six OpenAlex types that can
+never be an empirical use — conference abstract, dataset, paratext, erratum,
+letter, software. Editorial is deliberately *not* on that list.
+
+**Reviews** are flagged rather than vetoed. A review that genuinely re-analyses
+the microdata still passes; it just has to show a *strong* tied use signal
+rather than coasting on weak ones. Reviews are the single largest
+"mentions but doesn't use" category, so the bar is raised, not closed.
+
+### 9b. Gate 2b — the full-text pass (`fetchers.fulltext_data_use_probe`)
+
+Runs for every paper whose **use** score is still short — note that's the use
+axis, not the total. A paper can sit on a mountain of identity evidence and
+still show nothing about whether the data was used; that's exactly the paper
+worth spending an API call on.
+
+It asks OpenAlex whether the paper's own matched survey name sits within 40
+words of language describing working with the data. Proximity is what ties the
+evidence to *our* survey.
+
+The phrase lists were **picked from measurement, not intuition**: every
+candidate was run against the 36-DOI flagged review set and scored on how many
+intended-include vs intended-exclude papers it hit.
+
+- *Strong* (2 pts use, +1 identity): `using data from` (8 include / 1 exclude),
+  `data from the` (8/2), `we use` (3/0), `we used` (3/0), `collected by` (4/1),
+  `conducted by` (2/0), `we collected`, `obtained from`.
+- *Weak* (1 pt): `using the` (12/7 — best recall, noisiest), `sample of` (5/2),
+  `survey data` (7/5), `microdata`, `wave`, `round`.
+- *Provenance* (1 pt): `supported by`, `funded by`, `implemented by` — each 2/2
+  alone, kept separate so they stack rather than decide.
+
+Three findings from that measurement are worth recording, because all three
+contradicted an assumption:
+
+1. Phrases that *sound* like obvious wins — `we draw on`, `our analysis`,
+   `our sample`, `we obtained`, `drawn from` — scored **zero hits**. Academic
+   prose overwhelmingly prefers `using data from` / `data from the`.
+2. `this paper uses` (0/2), `this study uses` (1/3) and `based on the` (2/4) are
+   **negative** discriminators — they hit more citations than real uses.
+3. Citing the World Bank microdata catalogue measured **2/2 — no separation at
+   all**, despite the intuition that you only cite the catalogue when you
+   downloaded the files. It is searched (in the paper's *text*, not its hosting
+   URL) and written to the workbook as a flag, because it's useful when
+   reviewing by hand, but it gets **no points**.
+
+Bare nouns (`data`, `survey data`, `panel survey`, `using the`) were also tried
+as a combined group and dropped: a bibliography entry sits within 40 words of
+the word "data" in essentially every empirical paper, and they fired on 14
+known-good exclusions (17/32 vs 24/32).
+
+Papers failing either axis go to the "Not Relevant (Backup)" sheet — kept, not
+deleted, but excluded from every headline metric and both charts.
+
 
 ### 10. Auto-detected metadata columns
 
@@ -412,22 +482,25 @@ The function that ties everything together, in order:
    `--since-fy` date filter, if any.
 2. Load the existing file for merge-dedup, if `--merge-existing` was passed.
 3. For each survey family, call `OpenAlexFetcher.search_family()` (and
-   `CrossrefFetcher.search_term()` if `--crossref` is set), collecting every
+   `CrossrefFetcher.search_term()` if `--crossref` is set) — note Crossref gives no full text and no OpenAlex id, so Gate 2b
+   cannot run on those records and their use axis must come from an abstract
+   that is often missing; measured, 0 of 9 could clear Gate 2, so treat
+   `--crossref` as an audit trail rather than a source of new papers, collecting every
    raw match plus a log entry per family/source.
 4. Drop anything published before `--min-year` (default 1980, when the LSMS
    programme began) or after the current year (allowing one year of headroom
    for legitimately forthcoming articles) — this second check exists because
    OpenAlex occasionally carries a placeholder or erroneous future publication
    date, which would otherwise show up as, say, a paper from 2028.
-5. Deduplicate (see section 7 above) — this must happen *before* the relevance
-   cutoff, so the multi-family boost can rescue papers whose individual raw
-   matches were each too weak on their own.
-6. Apply the relevance cutoff: only papers scoring 2 or higher continue;
-   everything else is set aside as `excluded_low_relevance` for the backup
-   sheet. The cutoff has a hard floor of 2 regardless of `--min-relevance`
-   (`RELEVANCE_CUTOFF = max(2, min_relevance_score)`) — passing
-   `--min-relevance 3` raises the bar to only the strongest signal (survey
-   name in the title), but passing 0, 1, or 2 all behave identically.
+5. Deduplicate (see section 7 above) — this must happen *before* scoring, so a
+   paper's separate matches (several terms, several families) merge into one
+   record first; multi-term and multi-family are identity signals and need that
+   merge to exist.
+6. Score Gate 2a for every deduped paper, then run the Gate 2b full-text pass
+   over everything whose use axis is still short. Papers clearing **both** axes
+   continue; everything else is set aside as `excluded_low_relevance` for the
+   backup sheet. `--min-relevance` can only tighten this further — it never
+   lets through a paper that failed an axis.
 7. Print a results summary (paper counts, FY breakdown, Africa share) if
    `verbose` is on.
 8. Call `export_excel()` to write the workbook.
@@ -443,7 +516,9 @@ Defines every `--flag` (see the Options table in Part 1) and calls
 
 Structured as a list of survey-family dictionaries, each with a `label`, a
 `region`, a list of `context_hints` (the country/survey words required
-alongside a Tier C acronym from that family), and a `terms` list. Each entry
+alongside a Tier B or C term from that family — countries only, never a word
+that appears in the family's own terms, which would make the gate
+self-satisfying), and a `terms` list. Each entry
 in `terms` is a `(search_string, tier)` tuple — the tier is fixed data, set
 directly by the LSMS team's own review of every keyword, not inferred by any
 heuristic in `discover.py`. To add a new survey wave or keyword: add a tuple to
@@ -457,7 +532,7 @@ The bottom of the file also defines the country-code sets (`AFRICA_COUNTRY_CODES
 `SSA_COUNTRY_CODES`) and country-name sets used by `classify_geography()` in
 `discover.py`.
 
-Current keyword count: **124 terms across 10 survey families** — LSMS Core
+Current keyword count: **109 terms across 10 survey families** — LSMS Core
 Program, Burkina Faso (EMC/EHCVM), Ethiopia (ESS/ESPS), Malawi (IHS/IHPS), Mali
 (EACI), Niger (ECVMA), Nigeria (GHS-Panel), Tanzania (NPS), Uganda (UNPS), and
 High-Frequency Phone Surveys (HFPS).
