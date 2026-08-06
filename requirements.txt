@@ -1,11 +1,13 @@
 requests>=2.31.0
 pandas>=2.0.0
 openpyxl>=3.1.0
-tqdm>=4.66.0
+matplotlib>=3.7.0
+
+# tkinter is used by the launcher, but it ships with Python on Windows and
+# macOS rather than being installable from here.
 
 # Optional: Google Scholar supplement only
 # scholarly>=1.7.0
 
 # Optional: ScrapeOps proxy for Scholar (avoids CAPTCHA)
 # scrapeops-scrapy>=0.0.4
-matplotlib>=3.7.0
