@@ -20,6 +20,7 @@ import argparse
 import glob
 import os
 import sys
+import tempfile
 from datetime import date
 from pathlib import Path
 from typing import Optional
@@ -41,12 +42,63 @@ from excel_export import export_excel, export_csv
 import charts
 
 
-def latest_previous_export(exclude: Optional[str] = None) -> Optional[str]:
-    """Most recent LSMS_papers_*.xlsx in the working directory, if any."""
+def is_writable(folder) -> bool:
+    """Can we actually create a file here? Permissions alone don't tell you."""
+    probe = Path(folder) / f".write_test_{os.getpid()}"
+    try:
+        probe.write_text("ok", encoding="utf-8")
+        probe.unlink()
+        return True
+    except OSError:
+        return False
+
+
+def resolve_output_dir(preferred=None) -> tuple[Path, bool]:
+    """
+    Somewhere the results can actually be written. Returns (folder, moved).
+
+    Prefers the folder the tool is run from, so results sit next to the tool.
+    Cloud-synced and managed folders reject writes, though: a WBG OneDrive
+    folder returned "Errno 9 Bad file descriptor" on an ordinary open(). Rather
+    than refuse to run, fall back to LocalAppData, which sync clients never
+    touch, and say loudly where the results went.
+    """
+    candidates = [Path(preferred) if preferred else Path.cwd()]
+    local = os.environ.get("LOCALAPPDATA") or tempfile.gettempdir()
+    candidates.append(Path(local) / "LSMS Impact Analysis")
+
+    for i, folder in enumerate(candidates):
+        try:
+            folder.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            continue
+        if is_writable(folder):
+            return folder, i > 0
+    raise SystemExit(
+        "\n[error] No writable folder could be found for the results.\n"
+        f"        Tried: {', '.join(str(c) for c in candidates)}\n"
+        "        Copy the tool somewhere local, such as your Desktop, and retry.")
+
+
+def latest_previous_export(exclude: Optional[str] = None,
+                           folders=None) -> Optional[str]:
+    """
+    Most recent LSMS_papers_*.xlsx across the folders given.
+
+    Looks in the results folder as well as the working one: when the tool sits
+    in a folder it can't write to, results live elsewhere, and previous runs
+    have to be found where they were actually saved.
+    """
     exclude = os.path.abspath(exclude) if exclude else None
-    files = [f for f in glob.glob("LSMS_papers_*.xlsx")
-             if not os.path.basename(f).startswith("~$")
-             and os.path.abspath(f) != exclude]
+    folders = folders or [Path.cwd()]
+    files = []
+    for folder in folders:
+        for f in glob.glob(str(Path(folder) / "LSMS_papers_*.xlsx")):
+            if os.path.basename(f).startswith("~$"):
+                continue
+            if os.path.abspath(f) == exclude:
+                continue
+            files.append(f)
     return max(files, key=os.path.getmtime) if files else None
 
 
@@ -59,6 +111,7 @@ def run_discovery(
     merge_existing: Optional[str] = None,
     no_merge: bool = False,
     update_only: bool = False,
+    output_dir: Optional[str] = None,
     output_path: Optional[str] = None,
     fuzzy_threshold: float = 0.88,
     verbose: bool = True,
@@ -74,34 +127,35 @@ def run_discovery(
         if verbose:
             print(f"[info] Filtering papers ≥ {since_date} ({since_fy} start)")
 
+    # Settle where the results go BEFORE spending anything. The export happens
+    # at the very end, so an unwritable folder would otherwise burn a whole
+    # run's API budget and then throw the results away.
     if output_path is None:
         sfx = f"_since_{since_fy}" if since_fy else ""
         stamp = __import__("datetime").datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_path = f"LSMS_papers{sfx}_{stamp}.xlsx"
-
-    # Check we can actually write the result BEFORE spending anything. The
-    # export happens at the very end, so an unwritable folder would otherwise
-    # burn a full run's API budget and then throw the results away. Synced and
-    # managed folders do reject writes: a OneDrive folder on a Bank laptop
-    # returned "Errno 9 Bad file descriptor" on a perfectly ordinary open().
-    _probe = Path(output_path).parent / f".write_test_{os.getpid()}"
-    try:
-        _probe.write_text("ok", encoding="utf-8")
-        _probe.unlink()
-    except OSError as e:
+        out_dir, moved = resolve_output_dir(output_dir)
+        output_path = str(out_dir / f"LSMS_papers{sfx}_{stamp}.xlsx")
+        if moved:
+            print(f"\n[note] This folder cannot be written to, which usually means "
+                  f"OneDrive or\n       a security agent is locking it. Results will "
+                  f"be saved to:\n       {out_dir}\n", flush=True)
+    elif not is_writable(Path(output_path).parent):
         raise SystemExit(
-            f"\n[error] Cannot write results to {Path(output_path).parent.resolve()}\n"
-            f"        {type(e).__name__}: {e}\n\n"
+            f"\n[error] Cannot write results to {Path(output_path).parent.resolve()}\n\n"
             "        Nothing has been searched yet, so no API budget was spent.\n"
-            "        This usually means the folder is read-only, or a sync client\n"
-            "        (OneDrive, SharePoint) or security agent is locking it.\n"
-            "        Try copying the folder somewhere local, e.g. your Desktop.")
+            "        The folder is read-only, or a sync client (OneDrive,\n"
+            "        SharePoint) or security agent is locking it. Drop the\n"
+            "        --output option to let the tool pick a writable folder.")
+
+    # the launcher reads this line to find the workbook afterwards
+    print(f"[output] {Path(output_path).resolve()}", flush=True)
 
     # The methodology is settled, so every run is now checked against the last
     # one by default: papers already known are marked, papers this run added
     # are highlighted. Pass --no-merge for a clean run with no comparison.
     if merge_existing is None and not no_merge:
-        merge_existing = latest_previous_export(output_path)
+        search_in = [Path(output_path).parent, Path.cwd()]
+        merge_existing = latest_previous_export(output_path, folders=search_in)
         if merge_existing and verbose:
             print(f"[info] Cross-checking against {Path(merge_existing).name} "
                   "(use --no-merge to skip)")
@@ -332,6 +386,10 @@ def main():
                          "checks on papers the previous export hasn't already scored. Much "
                          "cheaper, and loses no coverage. Omit to rescore everything.")
     ap.add_argument("--output", metavar="FILE", help="Output Excel path")
+    ap.add_argument("--output-dir", metavar="DIR",
+                    help="Folder for the results. Defaults to the current folder, "
+                         "falling back to LocalAppData if that can't be written to "
+                         "(OneDrive and managed folders often can't).")
     ap.add_argument("--crossref", action="store_true",
                     help="Also search Crossref (title-only, slower)")
     ap.add_argument("--fuzzy-threshold", type=float, default=0.88)
@@ -345,7 +403,8 @@ def main():
             min_relevance_score=args.min_relevance, since_fy=args.since_fy,
             use_crossref=args.crossref, merge_existing=args.merge_existing,
             no_merge=args.no_merge, update_only=args.update,
-            output_path=args.output, fuzzy_threshold=args.fuzzy_threshold,
+            output_path=args.output, output_dir=args.output_dir,
+            fuzzy_threshold=args.fuzzy_threshold,
             verbose=not args.quiet, test_mode=args.test)
     except BudgetExceeded as e:
         print(f"\n[budget] {e}\nRun stopped before hitting the session spend limit.")

@@ -331,13 +331,22 @@ class App:
             proc = subprocess.Popen(cmd, cwd=HERE, stdout=subprocess.PIPE,
                                      stderr=subprocess.STDOUT, text=True, 
                                      encoding="utf-8", env=custom_env, bufsize=1)
+            reported_path = None
             for line in proc.stdout:
-                self.log_lines.append(line.rstrip())
+                line = line.rstrip()
+                self.log_lines.append(line)
+                # discover.py announces where it will write, which may not be
+                # this folder: OneDrive and other managed folders reject writes,
+                # and the pipeline falls back to a local one rather than failing.
+                if line.startswith("[output] "):
+                    reported_path = line[len("[output] "):].strip()
             proc.wait()
 
             if proc.returncode == 0:
-                found = newest_xlsx_in(HERE, start_time)
-                self.output_path = found
+                if reported_path and os.path.exists(reported_path):
+                    self.output_path = reported_path
+                else:
+                    self.output_path = newest_xlsx_in(HERE, start_time)
                 self.root.after(0, self.show_done)
             else:
                 tail = "\n".join(self.log_lines[-6:]) or "No output captured."
