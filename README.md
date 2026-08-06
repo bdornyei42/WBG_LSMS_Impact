@@ -618,8 +618,14 @@ verdicts and would otherwise keep the old ones.
 `LSMS Impact Analysis.bat` is the double-click shortcut. `Initial Setup.bat`
 installs the dependencies and only needs running once.
 
-`pipeline_config.json` holds the API key and is deliberately not tracked by
-git. The launcher recreates it the first time you enter a key.
+`pipeline_config.json` holds the API key and the tickbox setting. It is
+deliberately not tracked by git, so a fresh `git clone` arrives without it and
+your key is never published. The launcher creates it on first start by copying
+`pipeline_config.example.json`, so the file is always present in the folder and
+the key is the only thing anyone has to fill in.
+
+Copying the whole folder to another computer is different: the file is already
+on disk, so it travels with the folder and the key comes too.
 
 ---
 

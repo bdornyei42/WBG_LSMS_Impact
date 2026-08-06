@@ -9,7 +9,10 @@ from tkinter import messagebox
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(HERE, "pipeline_config.json")
+CONFIG_EXAMPLE = os.path.join(HERE, "pipeline_config.example.json")
 DISCOVER_SCRIPT = os.path.join(HERE, "discover.py")
+
+DEFAULT_CONFIG = {"api_key": "", "update_only": True}
 
 BLUE = "#2E6FDB"
 GREEN = "#2FA84F"
@@ -18,7 +21,33 @@ GRAY = "#6B7280"
 BG = "#FFFFFF"
 
 
+def ensure_config():
+    """
+    Guarantee pipeline_config.json exists in this folder.
+
+    It holds the API key, so it isn't in git -- a fresh clone would otherwise
+    arrive without it. Seed it from the tracked example (or from defaults if
+    that's missing too) so the file is always present and the key is the only
+    thing anyone has to fill in.
+    """
+    if os.path.exists(CONFIG_PATH):
+        return
+    seed = dict(DEFAULT_CONFIG)
+    if os.path.exists(CONFIG_EXAMPLE):
+        try:
+            with open(CONFIG_EXAMPLE) as f:
+                seed.update(json.load(f))
+        except (OSError, ValueError):
+            pass          # a broken example shouldn't stop the tool starting
+    try:
+        with open(CONFIG_PATH, "w") as f:
+            json.dump(seed, f, indent=2)
+    except OSError:
+        pass              # read-only folder: the app still runs, just won't remember
+
+
 def load_config():
+    ensure_config()
     if os.path.exists(CONFIG_PATH):
         try:
             with open(CONFIG_PATH, "r") as f:
