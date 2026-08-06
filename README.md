@@ -38,25 +38,57 @@ walkthrough.
 python discover.py --api-key YOUR_KEY
 ```
 
-Runtime is roughly 5–10 minutes for a full scan. Cost is well under $1 in
-OpenAlex API usage (OpenAlex gives every account $1.00 of free daily budget).
-Output is written to `LSMS_papers_YYYYMMDD_HHMMSS.xlsx` — timestamped, so
-re-running never overwrites a previous result.
+Runtime is roughly 5 minutes for a full run, which costs about $1.60 in
+OpenAlex usage. An update run costs cents and is what you want most of the
+time. OpenAlex gives every account a free daily budget.
+Each run writes four timestamped files, so re-running never overwrites an
+earlier result:
+
+| File | What it is |
+|---|---|
+| `LSMS_papers_<stamp>.xlsx` | The workbook: results, analysis, keyword register, audit trail, and every rejected paper with its reason. |
+| `LSMS_papers_<stamp>.csv` | The same rows and columns as the Papers sheet, for re-use elsewhere. The charts are built from this file, so what is plotted is provably what was exported. |
+| `LSMS_papers_<stamp>_flow.png` | Papers per fiscal year, with this run's additions stacked on top. |
+| `LSMS_papers_<stamp>_africa_share.png` | Share of papers with an African-affiliated author, per fiscal year. |
 
 ## Options
 
 ```bash
-python discover.py --api-key KEY                            # full scan
-python discover.py --api-key KEY --test                      # 2 families, ~30s smoke test
-python discover.py --api-key KEY --since-fy FY25             # only FY25 onward (faster incremental run)
-python discover.py --api-key KEY --merge-existing prior.xlsx # dedup against a previous run's output
-python discover.py --api-key KEY --min-relevance 3            # stricter: only survey-in-title papers (score 3)
-python discover.py --api-key KEY --min-year 1990              # change the earliest publication year accepted (default 1980)
-python discover.py --api-key KEY --output custom_name.xlsx    # choose the output filename
-python discover.py --api-key KEY --crossref                   # also query Crossref titles (slower, off by default)
-python discover.py --api-key KEY --fuzzy-threshold 0.9        # stricter fuzzy title match vs --merge-existing (default 0.88)
-python discover.py --api-key KEY -q                            # quiet mode, no progress printing
+python discover.py --api-key KEY --update                    # update run: only new papers cost anything
+python discover.py --api-key KEY                             # full run: rescore everything from scratch
+python discover.py --api-key KEY --test                      # 2 families, quick smoke test
+python discover.py --api-key KEY --since-fy FY25             # only papers published FY25 onward
+python discover.py --api-key KEY --merge-existing prior.xlsx # compare against a specific file
+python discover.py --api-key KEY --no-merge                  # don't compare against anything
+python discover.py --api-key KEY --min-relevance 4           # extra floor on identity+use combined
+python discover.py --api-key KEY --min-year 1990             # earliest publication year (default 1980)
+python discover.py --api-key KEY --output custom_name.xlsx   # choose the output filename
+python discover.py --api-key KEY --crossref                  # also query Crossref titles (see the caveat below)
+python discover.py --api-key KEY -q                          # quiet mode, no progress printing
 ```
+
+Most people should use the launcher (`LSMS Impact Analysis.bat`) instead,
+which exposes the one choice that matters as a tickbox.
+
+### Update runs vs full runs
+
+Every run compares against the most recent `LSMS_papers_*.xlsx` in the folder
+unless told otherwise, and marks each paper as new or already known. Rows
+added by this run are highlighted in the workbook.
+
+`--update` additionally skips the expensive step for papers a previous run
+already scored. It still **searches** everything, so nothing is missed; it just
+doesn't pay to re-examine the full text of papers whose verdict is already
+known. Gate 1 is roughly 20% of a run's cost and Gate 2b the other 80%, so an
+update run costs cents rather than about $1.60.
+
+It is deliberately not a date window. OpenAlex indexes papers long after they
+are published, so "only search since last time" would lose late arrivals
+permanently, and the `from_created_date` filter that would fix that requires a
+paid OpenAlex plan (verified: the free tier returns 429).
+
+Use a full run after changing the matching rules, since `--update` reuses
+stored verdicts and would otherwise keep the old ones.
 
 ---
 
@@ -66,11 +98,18 @@ python discover.py --api-key KEY -q                            # quiet mode, no 
 
 | File | What it is |
 |---|---|
-| `discover.py` | The pipeline itself. Everything described below lives here. |
-| `keywords.py` | The list of survey search terms, organised by survey family, each with a fixed match tier (A/B/C/AND). This is the only file you need to touch to add a new survey or keyword. |
+| `discover.py` | Ties the pipeline together and exposes the command line. The steps below live in the modules it imports. |
+| `matching.py` | Gate 1: builds the OpenAlex queries and decides whether a keyword hit is admitted. |
+| `relevance.py` | Gate 2: scores the identity and use axes and decides what counts. |
+| `fetchers.py` | Talks to OpenAlex (and Crossref, optionally), including the full-text pass and the spend guard. |
+| `dedup.py` | Merges duplicates within a run and marks papers new or already known against the previous run. |
+| `excel_export.py` | Writes the workbook and the CSV, and tints the rows this run added. |
+| `charts.py` | The two PNG charts, in the World Bank palette. Swap the hexes at the top of the file to restyle everything. |
+| `test_logic.py` | Offline sanity checks for the matching and scoring logic. No network: `python test_logic.py`. |
+| `keywords.py` | The survey search terms by family, each with a fixed tier (A/B/C) and the country words that gate it. This is the only file you need to touch to add a survey or keyword. |
 | `scholar_supplement.py` | Optional, off by default. Searches Google Scholar for the same terms as a supplementary source (grey literature OpenAlex might miss). Not wired into the default run — call it directly if needed. |
-| `run_lsms.py` | A small Tkinter GUI: paste your API key, click Run, watch progress, get a "done" popup. This is what the `.bat`/`.command` launchers open. |
-| `Run LSMS Finder.bat` / `Run LSMS Finder.command` | Double-click launchers for Windows / Mac that just call `python run_lsms.py`. |
+| `run_pipeline.py` | The launcher: paste your API key, choose update or full run, click Run. This is what the `.bat` opens. |
+| `LSMS Impact Analysis.bat` | Double-click launcher. `Initial Setup.bat` installs the dependencies once, first. |
 | `LSMS_Finder_Instructions.docx` | A 1–2 page instructions document for non-technical staff: how to get an API key, how to run the tool, cost and timing expectations. |
 | `requirements.txt` | Python package dependencies (`pip install -r requirements.txt`). |
 
@@ -86,7 +125,7 @@ finally the command-line entry point. Below is what each section does.
 
 ### 1. Imports and constants (top of file)
 
-Standard library (`re`, `time`, `difflib` for fuzzy string matching,
+Standard library (`re`, `time`,
 `hashlib`, `unicodedata` for accent-stripping) plus `requests` (HTTP calls),
 `pandas` (building the output tables), and `openpyxl` (writing styled Excel
 files with charts). `tqdm` is optional — if it's not installed, a no-op
@@ -214,12 +253,16 @@ step has to happen *after* merging and *before* the relevance cutoff is
 applied in `run_discovery()`, otherwise the individual low-scoring duplicates
 would each get excluded on their own before ever being merged together.
 
-**Stage 2 — against a prior run.** If `--merge-existing` was given, new papers
-are checked against the old file's DOIs and titles (exact match, then fuzzy
-string similarity via `difflib`). Exact matches are silently dropped as
-already-known. Fuzzy matches above the similarity threshold (default 0.88) are
-set aside in a "Dedup Review" sheet for a human to glance at, rather than
-either silently merging or silently duplicating.
+**Stage 2 — against the previous run.** Every paper found is kept; the prior
+file only decides what is *marked* as new. Matching is exact, on OpenAlex id
+first, then DOI, then normalised title. A paper carries the same OpenAlex id
+between runs, so this is both exact and instant.
+
+This replaced a fuzzy title comparison that ran every new title against every
+old one. It was quadratic and never finished on a real corpus: 200 papers
+against a 7,600-row export did not complete in five minutes, so runs hung
+before writing any output. It also bought nothing that the id doesn't already
+settle.
 
 ### 8. The three-tier search filter
 
@@ -420,7 +463,7 @@ columns, light-blue highlighted metric cells with bold text and a black
 border, and specific column widths (75/48/23/23) matching a reference layout
 the LSMS team supplied. Sections written, top to bottom: totals (including how
 many papers were excluded and why), FLOW (papers per fiscal year), a breakdown
-of how each paper was matched (tier A/B/C/AND counts), the relevance-score
+of how each paper was matched (strongest tier per paper), the two-axis
 composition of the analysed set, and the SHARE section (African authorship,
 with the current-fiscal-year figure computed relative to that fiscal year's
 own total, not the full corpus).
@@ -444,8 +487,10 @@ columns are hidden).
 
 Assembles every sheet and writes the final `.xlsx` file. Sheet order:
 
-1. **Papers** — every analysed paper (relevance score ≥ 2), sorted by fiscal
-   year descending, then alphabetically by title within each year.
+1. **Papers** — every paper that cleared both the identity and use axes,
+   sorted by fiscal year descending, then alphabetically within each year.
+   Rows added by this run are tinted, and the `is_new` column records
+   Yes/No.
 2. **Analysis** — see above.
 3. **FY Trend** — the full per-fiscal-year numeric table backing the charts
    (all fiscal years back to 2009, not just the completed ones shown in the
@@ -455,11 +500,12 @@ Assembles every sheet and writes the final `.xlsx` file. Sheet order:
    context words.
 5. **Search Log** — one row per survey family per source (OpenAlex, and
    Crossref if enabled), recording how many raw results came back.
-6. **Dedup Review** — only present if `--merge-existing` produced any
-   borderline fuzzy title matches needing a human glance.
-7. **Not Relevant (Backup)** — always last. Every paper that was matched by a
-   keyword but scored below the relevance cutoff (0 or 1). Kept for audit
-   purposes, excluded from every metric elsewhere in the workbook.
+6. **Dedup Review** — retained for backwards compatibility; empty now that
+   matching against a previous run is exact.
+7. **Not Relevant (Backup)** — always last. Every paper matched by a keyword
+   that failed the identity or the use axis. Kept for audit purposes and
+   excluded from every metric elsewhere in the workbook. An update run reads
+   this sheet too, so papers already rejected are not re-checked.
 
 `_clean_cell()` sanitises every cell value before writing: strips characters
 Excel's XML format can't represent, decodes stray HTML entities, and prefixes
@@ -553,21 +599,27 @@ merge into the same pipeline (same field names as `discover.py`'s output).
 
 ---
 
-## `run_lsms.py` and the launcher scripts
+## `run_pipeline.py` and the launcher
 
-`run_lsms.py` opens a small Tkinter window: an API-key field (pre-filled from
-`openalex_key.txt` if you've run it before — that file is created next to the
-script the first time you enter a key, so you never have to retype it), a
-"quick test run" checkbox, a Run button, and a scrolling log panel that streams
-`discover.py`'s console output live. On completion it pops up a confirmation
-and offers to open the results folder. If Tkinter isn't available in the
-Python environment, it falls back to a plain console prompt with the same
-key-saving behaviour.
+`run_pipeline.py` opens a small Tkinter window: an API-key field (remembered
+in `pipeline_config.json` so you never retype it), a tickbox choosing between
+an update run and a full run, and a Run button. It streams `discover.py`'s
+progress and offers to open the result when it finishes.
 
-`Run LSMS Finder.bat` (Windows) and `Run LSMS Finder.command` (Mac) are
-one-line double-click shortcuts that just `cd` into this folder and run
-`python run_lsms.py` (trying `py` first on Windows, since that launcher is
-more reliably on `PATH` than `python` on some systems).
+The tickbox is the only decision most people need to make:
+
+| Ticked (default) | Unticked |
+|---|---|
+| Adds newly found papers to your latest results and highlights them. Costs cents. | Rebuilds and rescores everything. About 5 minutes, roughly $1.60. |
+
+Untick it after changing the matching rules, since an update run reuses stored
+verdicts and would otherwise keep the old ones.
+
+`LSMS Impact Analysis.bat` is the double-click shortcut. `Initial Setup.bat`
+installs the dependencies and only needs running once.
+
+`pipeline_config.json` holds the API key and is deliberately not tracked by
+git. The launcher recreates it the first time you enter a key.
 
 ---
 
