@@ -57,9 +57,38 @@ def load_config():
     return {}
 
 
-def save_config(cfg):
-    with open(CONFIG_PATH, "w") as f:
-        json.dump(cfg, f, indent=2)
+def save_config(cfg) -> bool:
+    """
+    Remember the key and the tickbox. Returns False if it couldn't.
+
+    Never raises. This is a convenience -- the key is passed to discover.py on
+    the command line regardless -- so failing to save must not stop an
+    analysis. Observed on a OneDrive-synced WBG folder, where a direct write
+    came back as "OSError: [Errno 9] Bad file descriptor" and took the whole
+    run down with it.
+
+    Writes to a temporary file and renames it into place. os.replace is atomic
+    and tends to survive sync clients and scanners better than truncating the
+    real file, and it can't leave a half-written config behind.
+    """
+    tmp = CONFIG_PATH + ".tmp"
+    try:
+        with open(tmp, "w") as f:
+            json.dump(cfg, f, indent=2)
+        os.replace(tmp, CONFIG_PATH)
+        return True
+    except OSError:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        # last resort: some sync folders reject the rename but allow a plain write
+        try:
+            with open(CONFIG_PATH, "w") as f:
+                json.dump(cfg, f, indent=2)
+            return True
+        except OSError:
+            return False
 
 
 def newest_xlsx_in(folder, after_mtime):
@@ -222,7 +251,12 @@ class App:
                        "Usually about 5 minutes."),
                  font=("Segoe UI", 8), bg=BG, fg=GRAY, wraplength=380, justify="center").pack(pady=(4, 0))
 
-        self.status_var.set("Do not close this window while the analysis is running.")
+        msg = "Do not close this window while the analysis is running."
+        if not getattr(self, "saved_ok", True):
+            msg += ("  (Your key could not be saved to this folder, so you'll "
+                    "need to paste it again next time. The analysis itself is "
+                    "unaffected.)")
+        self.status_var.set(msg)
 
     def show_done(self):
         self._clear_body()
@@ -274,7 +308,9 @@ class App:
             return
 
         update_only = bool(self.update_var.get())
-        save_config({"api_key": key, "update_only": update_only})
+        # The key goes to discover.py on the command line, so not being able to
+        # remember it is a nuisance, not a reason to refuse to run.
+        self.saved_ok = save_config({"api_key": key, "update_only": update_only})
         self.show_running(update_only)
 
         cmd = [sys.executable, DISCOVER_SCRIPT, "--api-key", key]

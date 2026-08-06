@@ -79,6 +79,24 @@ def run_discovery(
         stamp = __import__("datetime").datetime.now().strftime("%Y%m%d_%H%M%S")
         output_path = f"LSMS_papers{sfx}_{stamp}.xlsx"
 
+    # Check we can actually write the result BEFORE spending anything. The
+    # export happens at the very end, so an unwritable folder would otherwise
+    # burn a full run's API budget and then throw the results away. Synced and
+    # managed folders do reject writes: a OneDrive folder on a Bank laptop
+    # returned "Errno 9 Bad file descriptor" on a perfectly ordinary open().
+    _probe = Path(output_path).parent / f".write_test_{os.getpid()}"
+    try:
+        _probe.write_text("ok", encoding="utf-8")
+        _probe.unlink()
+    except OSError as e:
+        raise SystemExit(
+            f"\n[error] Cannot write results to {Path(output_path).parent.resolve()}\n"
+            f"        {type(e).__name__}: {e}\n\n"
+            "        Nothing has been searched yet, so no API budget was spent.\n"
+            "        This usually means the folder is read-only, or a sync client\n"
+            "        (OneDrive, SharePoint) or security agent is locking it.\n"
+            "        Try copying the folder somewhere local, e.g. your Desktop.")
+
     # The methodology is settled, so every run is now checked against the last
     # one by default: papers already known are marked, papers this run added
     # are highlighted. Pass --no-merge for a clean run with no comparison.
