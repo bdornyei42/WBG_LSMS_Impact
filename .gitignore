@@ -1,7 +1,13 @@
 # generated pipeline output
 LSMS_papers_*.xlsx
+LSMS_papers_*.csv
+LSMS_papers_*.png
 ~$*.xlsx
 ~$*.xlsm
+~$*.docx
+
+# holds the OpenAlex API key -- keep it out of the repo
+pipeline_config.json
 
 # python
 __pycache__/
