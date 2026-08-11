@@ -233,15 +233,15 @@ function gateCard(n, sharePct, desc) {
   return div;
 }
 
-function renderHero(m, analysisFyStart) {
+function renderHero(m) {
   document.getElementById("stat-total").textContent = fmt.format(m.total_papers);
   document.getElementById("stat-total-sub").textContent =
-    `Papers confirmed to use LSMS survey data, ${analysisFyStart} (the start of the current LSMS-ISA survey program) to present`;
+    `Papers confirmed to use data from LSMS-supported longitudinal in-person and phone surveys since 2008 (under LSMS-ISA, LSMS-HFPS, and other on-going initiatives)`;
   document.getElementById("stat-flow").textContent = fmt.format(m.most_recent_completed_fy_count);
   document.getElementById("stat-flow-sub").textContent = `New papers in ${m.most_recent_completed_fy} (World Bank fiscal year)`;
   document.getElementById("stat-share").textContent = pct(m.geography.any_author_africa_recent_fy.share);
   document.getElementById("stat-share-sub").textContent =
-    `${fmt.format(m.geography.any_author_africa_recent_fy.count)} of ${fmt.format(m.most_recent_completed_fy_count)} ${m.most_recent_completed_fy} papers had an author based in Africa`;
+    `${fmt.format(m.geography.any_author_africa_recent_fy.count)} of ${fmt.format(m.most_recent_completed_fy_count)} ${m.most_recent_completed_fy} papers had an author affiliated with an African institution`;
 }
 
 function renderGates(m) {
@@ -262,12 +262,6 @@ function renderGates(m) {
     ["World Bank–affiliated papers", `${fmt.format(m.wb_affiliated.count)} (${pct(m.wb_affiliated.share)})`],
     ["Other multilateral organization–affiliated papers", `${fmt.format(m.multilateral.count)} (${pct(m.multilateral.share)})`],
   ];
-  if (m.total_retrieved !== null) {
-    rows.push(["Total papers found before this filtering", fmt.format(m.total_retrieved)]);
-    rows.push(["Mentions an LSMS survey, but shows no evidence of using the data", fmt.format(m.excluded_no_use)]);
-    rows.push(["Likely a different survey with a similar name", fmt.format(m.excluded_no_identity)]);
-    rows.push(["Not a type of publication that could contain original data analysis", fmt.format(m.excluded_vetoed)]);
-  }
   totalsEl.innerHTML = rows.map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join("");
 }
 
@@ -378,7 +372,7 @@ async function main() {
     new Date(data.generated_at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
   document.getElementById("source-file").textContent = data.source_file;
 
-  renderHero(data.metrics, data.analysis_fy_start);
+  renderHero(data.metrics);
   renderFlowChart(document.getElementById("flow-chart"), data.flow);
   renderShareChart(document.getElementById("share-chart"), data.flow);
   renderTierPie(document.getElementById("tier-pie"), data.metrics.journal_tiers);
