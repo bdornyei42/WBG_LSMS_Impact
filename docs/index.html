@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>LSMS Research Impact — Tracking Pipeline</title>
+<title>LSMS Research Impact: Tracking Pipeline</title>
 <link rel="icon" href="assets/lsms-logo.png">
 <link rel="stylesheet" href="styles.css">
 </head>
@@ -13,15 +13,15 @@
   <div class="top-inner">
     <div class="brand">
       <img class="wb-logo" src="assets/wb-logo.png" alt="The World Bank">
-      <img class="lsms-logo" src="assets/lsms-logo.png" alt="LSMS — Living Standards Measurement Study">
+      <img class="lsms-logo" src="assets/lsms-logo.png" alt="LSMS: Living Standards Measurement Study">
       <div class="brand-title">
-        <h1>LSMS Research Impact — Tracking Pipeline</h1>
+        <h1>LSMS Research Impact: Tracking Pipeline</h1>
         <p>Automated identification and validation of published research using LSMS survey data</p>
       </div>
     </div>
     <div class="meta">
-      Last updated <strong id="generated-at">—</strong><br>
-      Source: <span id="source-file">—</span> ·
+      Last updated <strong id="generated-at">...</strong><br>
+      Source: <span id="source-file">...</span> ·
       <a href="https://github.com/bdornyei42/WBG_LSMS_Impact" target="_blank" rel="noopener">GitHub</a>
     </div>
   </div>
@@ -35,30 +35,30 @@
   <div class="hero">
     <div class="stat-card">
       <div class="label">Total</div>
-      <div class="value" id="stat-total">—</div>
-      <div class="sub">Papers using LSMS survey data (FY80–present) that pass both identity and use gates</div>
+      <div class="value" id="stat-total">...</div>
+      <div class="sub" id="stat-total-sub">Papers confirmed to use LSMS survey data</div>
     </div>
     <div class="stat-card flow">
       <div class="label">Flow</div>
-      <div class="value" id="stat-flow">—</div>
-      <div class="sub" id="stat-flow-sub">—</div>
+      <div class="value" id="stat-flow">...</div>
+      <div class="sub" id="stat-flow-sub">...</div>
     </div>
     <div class="stat-card share">
       <div class="label">Share</div>
-      <div class="value" id="stat-share">—</div>
-      <div class="sub" id="stat-share-sub">—</div>
+      <div class="value" id="stat-share">...</div>
+      <div class="sub" id="stat-share-sub">...</div>
     </div>
   </div>
 
   <div class="chart-grid">
     <section class="panel">
       <h2>LSMS papers per fiscal year</h2>
-      <p class="panel-sub">World Bank fiscal year, 1 July – 30 June. Current FY shown lighter — still in progress.</p>
+      <p class="panel-sub">World Bank fiscal year, 1 July - 30 June. Current FY shown lighter, still in progress.</p>
       <div class="chart" id="flow-chart"></div>
     </section>
     <section class="panel">
       <h2>Share of African-affiliated authorship</h2>
-      <p class="panel-sub">Institution-based; undercounts African diaspora at non-African institutions.</p>
+      <p class="panel-sub">Based on each author's institution, so it undercounts African researchers based outside Africa (for example at the World Bank, or at US/European universities).</p>
       <div class="legend">
         <span><span class="swatch" style="background:#1F5C99"></span>Any author at an African institution</span>
         <span><span class="swatch" style="background:#E65100"></span>First author at an African institution</span>
@@ -70,12 +70,12 @@
   <div class="chart-grid" style="grid-template-columns: 1fr 1.4fr;">
     <section class="panel">
       <h2>Papers by journal tier</h2>
-      <p class="panel-sub">Auto-detected journal quality tier.</p>
+      <p class="panel-sub">Publications classified by venue, from leading economics journals to unpublished working papers.</p>
       <div class="chart" id="tier-pie" style="max-width:260px;"></div>
     </section>
     <section class="panel">
       <h2>Totals</h2>
-      <p class="panel-sub">All figures below refer to the retained set — papers that both identify and use the survey.</p>
+      <p class="panel-sub">All figures below cover the confirmed papers shown in the Total figure above.</p>
       <table style="width:100%; font-size:13.5px; border-collapse:collapse;" id="totals-table">
         <tbody id="totals-summary"></tbody>
       </table>
@@ -83,33 +83,33 @@
   </div>
 
   <section class="panel">
-    <h2>Gate 1 — how each paper was matched</h2>
-    <p class="panel-sub">Strongest tier each paper matched on. A paper often matches several terms at different tiers; it's counted once here, under the strongest. These three sum to 100%.</p>
+    <h2>How each paper was found</h2>
+    <p class="panel-sub">Papers are found by searching for the name of an LSMS survey. Some survey names are unmistakable on their own; others are more generic and need the country's name nearby to confirm a real match. This shows how strong that match was, for every paper found.</p>
     <div class="gate-grid" id="gate1-grid"></div>
   </section>
 
   <section class="panel">
-    <h2>Gate 2 — identity and use, scored separately</h2>
-    <p class="panel-sub">IDENTITY: is this really one of our surveys, or a name collision? USE: did the authors work with the microdata, or only mention it? Identity needs 2+ points AND use needs 2+ — clearing one axis alone isn't enough.</p>
+    <h2>Confirming the data was actually used</h2>
+    <p class="panel-sub">Mentioning a survey is not the same as analyzing its data. Every paper is checked against two separate questions: is this genuinely one of our surveys and not a different survey with a similar name, and did the authors actually work with the data rather than just cite it in passing. A paper is only counted if both checks are satisfied.</p>
     <div class="gate-grid" id="gate2-grid"></div>
   </section>
 
   <section class="panel">
     <h2>Geography of authors</h2>
-    <p class="panel-sub">Note: institution-based, so it undercounts African diaspora researchers at World Bank / US / EU institutions.</p>
+    <p class="panel-sub">Based on each author's institution, so it undercounts African researchers based outside Africa (for example at the World Bank, or at US/European universities).</p>
     <div class="gate-grid" id="geo-grid"></div>
   </section>
 
   <section class="panel">
     <h2>Papers</h2>
-    <p class="panel-sub">Search and filter the full set of retained papers.</p>
+    <p class="panel-sub">Search and filter every confirmed paper, including LSMS studies published before FY09.</p>
     <div class="table-controls">
       <input type="search" id="search" placeholder="Search title, authors, venue…">
       <select id="filter-fy"><option value="">All fiscal years</option></select>
       <select id="filter-geo">
         <option value="">All geographies</option>
-        <option value="any">Any author — Africa</option>
-        <option value="first">First author — Africa</option>
+        <option value="any">Any author: Africa</option>
+        <option value="first">First author: Africa</option>
       </select>
       <select id="filter-peer">
         <option value="">All publication types</option>

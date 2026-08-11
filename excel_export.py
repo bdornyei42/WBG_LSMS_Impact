@@ -63,7 +63,11 @@ _AL_CENTER    = Alignment(horizontal="center")
 
 
 def _build_trend_df(papers: list, current_fy: str) -> pd.DataFrame:
-    fy_labels = [f"FY{str(y)[-2:]}" for y in range(2009, 2030)]
+    # Runs through the current fiscal year, whatever that is -- not a fixed
+    # end year that would start silently dropping the most recent papers once
+    # the calendar passes it, or keep padding out empty future years forever.
+    end_year = fy_to_year(current_fy) or 2029
+    fy_labels = [f"FY{str(y)[-2:]}" for y in range(2009, end_year + 1)]
     rows = []
     for fy in fy_labels:
         fp = [p for p in papers if p.get("fy") == fy]
@@ -354,7 +358,7 @@ def write_analysis_sheet(ws, papers, current_fy, completed_fys,
     ws.add_chart(line, "E24")
 
     _TIER_ORDER = [
-        "1 — Top General Econ",
+        "1 — Top General",
         "2 — Top Field",
         "3 — Quality Field",
         "4 — Other Peer-Reviewed",
@@ -371,7 +375,7 @@ def write_analysis_sheet(ws, papers, current_fy, completed_fys,
     ws.cell(pie_start, 2, "Papers").font = _F_WHITE_BOLD
     ws.cell(pie_start, 2).fill = _FILL_DARK
     pie_labels = [
-        "Tier 1 — Top General Econ",
+        "Tier 1 — Top General",
         "Tier 2 — Top Field",
         "Tier 3 — Quality Field",
         "Tier 4 — Other Peer-Reviewed",

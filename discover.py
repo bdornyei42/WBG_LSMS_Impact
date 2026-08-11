@@ -268,11 +268,15 @@ def run_discovery(
             if not prior:
                 continue
             if prior.get("use_score") is not None and str(prior["use_score"]).strip() != "":
+                # Parse both before writing either -- a paper must never end up
+                # with one field from the prior run and one freshly computed.
                 try:
-                    p["use_score"] = int(float(prior["use_score"]))
-                    p["identity_score"] = int(float(prior["identity_score"]))
+                    use_score = int(float(prior["use_score"]))
+                    identity_score = int(float(prior["identity_score"]))
                 except (TypeError, ValueError):
                     continue
+                p["use_score"] = use_score
+                p["identity_score"] = identity_score
                 flags = prior.get("relevance_flags")
                 p["relevance_flags"] = "" if flags is None or str(flags) == "nan" else str(flags)
                 reused += 1

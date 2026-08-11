@@ -1,5 +1,5 @@
 """
-build_site.py — regenerate docs/data.json and docs/papers.json from the
+build_site.py: regenerate docs/data.json and docs/papers.json from the
 latest exported workbook, so the GitHub Pages dashboard in docs/ always
 mirrors the newest run. Called by save.bat before every commit.
 
@@ -23,13 +23,19 @@ from relevance import IDENTITY_MIN, USE_MIN
 HERE = os.path.dirname(os.path.abspath(__file__))
 DOCS = os.path.join(HERE, "docs")
 
+# LSMS-ISA, the current phase of the survey program, began in FY09; the
+# headline stats and the flow/share charts all cover that same FY09-present
+# window so the numbers on the page agree with each other. Papers from
+# earlier LSMS rounds still show up in the full papers table below.
+ANALYSIS_FY_START = 2009
+
 TIER_ORDER = [
     "1 — Top General Econ", "2 — Top Field", "3 — Quality Field",
     "4 — Other Peer-Reviewed", "WP — Working Paper / Non-Journal",
 ]
 TIER_LABELS = [
-    "Tier 1 — Top General Econ", "Tier 2 — Top Field", "Tier 3 — Quality Field",
-    "Tier 4 — Other Peer-Reviewed", "Working Paper / Non-Journal",
+    "Tier 1: Top General", "Tier 2: Top Field", "Tier 3: Quality Field",
+    "Tier 4: Other Peer-Reviewed", "Working Paper / Non-Journal",
 ]
 
 PAPER_COLS = [
@@ -72,7 +78,7 @@ def load_papers():
 
 
 def build_flow(papers, current_fy, completed_fys):
-    fy_labels = [f"FY{str(y)[-2:]}" for y in range(2009, fy_to_year(current_fy) + 1)]
+    fy_labels = [f"FY{str(y)[-2:]}" for y in range(ANALYSIS_FY_START, fy_to_year(current_fy) + 1)]
     rows = []
     for fy in fy_labels:
         fp = papers[papers["fy"] == fy]
@@ -178,10 +184,18 @@ def build_metrics(papers, excluded, current_fy, completed_fys):
 
 
 _TAG = re.compile(r"</?[a-zA-Z][^>]*>")
+_TIER_DASH = re.compile(r"\s+—\s+")
 
 
 def _strip_tags(v):
     return _TAG.sub("", v) if isinstance(v, str) else v
+
+
+def _clean_tier_label(v):
+    # journal_tier values are our own labels (e.g. "4 — Other Peer-Reviewed"),
+    # not bibliographic data, so the display copy on the page can drop the
+    # dash without misrepresenting anything the pipeline actually found.
+    return _TIER_DASH.sub(": ", v) if isinstance(v, str) else v
 
 
 def build_papers_json(papers):
@@ -196,6 +210,7 @@ def build_papers_json(papers):
     # search match; this is a public page, so strip it for display.
     for c in ("title", "venue", "authors", "first_author"):
         df[c] = df[c].map(_strip_tags)
+    df["journal_tier"] = df["journal_tier"].map(_clean_tier_label)
 
     def _fy_key(row):
         return (-fy_to_year(row["fy"] or ""), str(row["title"] or "").lower())
@@ -211,10 +226,15 @@ def main():
     papers, excluded, source_file = load_papers()
     current_fy, completed_fys = current_and_prior_fy()
 
+    recent = papers[papers["fy"].map(fy_to_year) >= ANALYSIS_FY_START]
+    recent_excluded = (excluded[excluded["fy"].map(fy_to_year) >= ANALYSIS_FY_START]
+                        if excluded is not None else None)
+
     data = {
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "source_file": source_file,
-        "metrics": build_metrics(papers, excluded, current_fy, completed_fys),
+        "analysis_fy_start": f"FY{str(ANALYSIS_FY_START)[-2:]}",
+        "metrics": build_metrics(recent, recent_excluded, current_fy, completed_fys),
         "flow": build_flow(papers, current_fy, completed_fys),
     }
 

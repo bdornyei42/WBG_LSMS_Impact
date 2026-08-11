@@ -23,8 +23,6 @@ def classify_geography(country_codes: list, first_author_codes: list) -> dict:
         geo, strict = "Sub-Saharan Africa", True
     elif codes & AFRICA_COUNTRY_CODES:
         geo, strict = "Mixed", False
-    elif len(codes) > 1:
-        geo, strict = "Mixed", False
     else:
         geo, strict = "Other", False
 

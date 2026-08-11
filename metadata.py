@@ -112,10 +112,39 @@ def dataset_countries(survey_family: str, survey_terms_matched: str) -> dict:
     return out
 
 
+# Real journal names that happen to contain a repo/working-paper marker as a
+# substring (e.g. "Organization" contains "iza", "Archives of Public Health"
+# contains "archive"). Checked before the marker loops so these never get
+# swept into the WP/repository bucket. Add here, not by widening the markers.
+_VENUE_TYPE_OVERRIDES = {
+    "bulletin of the world health organization",
+    "journal of economic behavior & organization",
+    "journal of agricultural & food industrial organization",
+    "globalization and health",
+    "environment and urbanization asia",
+    "journal of social & organizational matters",
+    "journal of organizational behavior research",
+    "research in globalization",
+    "international journal of organizational analysis",
+    "archives of public health",
+    "archives of trauma and emergency medicine",
+    "journal of the royal statistical society series a (statistics in society)",
+    "journal of the royal statistical society series b (statistical methodology)",
+    "cephalalgia",
+    "bmj open ophthalmology",
+    "bmc ophthalmology",
+    "socioeconomic challenges",
+    "challenges",
+}
+
+
 def detect_pub_type(oa_type: str, venue: str) -> str:
     """Classify the real output type. OpenAlex's own `type` alone is not enough."""
     v = (venue or "").lower()
     t = (oa_type or "").lower()
+
+    if v.strip() in _VENUE_TYPE_OVERRIDES:
+        return "Journal Article"
 
     _REPO_MARKERS = (
         "repository", "repositories", "archive", "eprints", "escholarship",
@@ -145,10 +174,19 @@ def detect_pub_type(oa_type: str, venue: str) -> str:
     _WP_MARKERS = (
         "working paper", "discussion paper", "technical paper",
         "national bureau of economic research", "nber", "repec",
-        "research papers in economics", "econstor", "ssrn", "cepr", "iza",
-        "policy research working paper", "opengrey", "opendocs", "hal",
+        "research papers in economics", "econstor", "ssrn", "cepr",
+        "policy research working paper", "opengrey", "opendocs",
+        # "hal" and "iza" alone are too generic (they're substrings of
+        # "Ophthalmology", "Cephalalgia", "Organization", etc.) — matched
+        # by their specific archive names instead. Same for bare "series",
+        # a substring of many real journal titles (Journal of the Royal
+        # Statistical Society *Series* A, Marine Ecology Progress *Series*).
+        "hal (le centre pour la communication scientifique directe",
+        "archives-ouvertes", "halshs",
+        "iza discussion", "iza dp",
         "open science framework", "osf", "preprint", "arxiv", "philpapers",
-        "contributions to economics", "research series", "series",
+        "contributions to economics", "research series",
+        "staff country report", "staff discussion note",
     )
 
     if t == "book-chapter" or any(x in v for x in _EBOOK_MARKERS):
@@ -172,14 +210,29 @@ def detect_pub_type(oa_type: str, venue: str) -> str:
     return "Other"
 
 
-# Standard field rankings for development economics. Swap in the WBG-approved
-# list here when it arrives; nothing else needs to change.
+# Standard field rankings, covering every discipline LSMS-linked papers
+# actually get published in (economics, health, nutrition, agriculture,
+# demography, statistics, environment) — not economics alone. An earlier
+# version only ranked econ journals, which meant a nutrition or public-health
+# paper in a genuinely top journal for its field still fell into Tier 4 by
+# default. Swap in the WBG-approved list here when it arrives; nothing else
+# needs to change.
 _JOURNAL_TIERS = {
-    "american economic review": "1 — Top General Econ",
-    "quarterly journal of economics": "1 — Top General Econ",
-    "journal of political economy": "1 — Top General Econ",
-    "review of economic studies": "1 — Top General Econ",
-    "econometrica": "1 — Top General Econ",
+    # --- Tier 1: top general-interest, any discipline -------------------
+    "american economic review": "1 — Top General",
+    "quarterly journal of economics": "1 — Top General",
+    "journal of political economy": "1 — Top General",
+    "review of economic studies": "1 — Top General",
+    "econometrica": "1 — Top General",
+    "nature": "1 — Top General",
+    "science": "1 — Top General",
+    "proceedings of the national academy of sciences": "1 — Top General",
+    "the lancet": "1 — Top General",
+    "new england journal of medicine": "1 — Top General",
+    "jama": "1 — Top General",
+    "bmj": "1 — Top General",
+
+    # --- Tier 2: top field journal within its own discipline ------------
     "journal of development economics": "2 — Top Field",
     "world development": "2 — Top Field",
     "american economic journal applied economics": "2 — Top Field",
@@ -196,16 +249,31 @@ _JOURNAL_TIERS = {
     "journal of human resources": "2 — Top Field",
     "journal of economic perspectives": "2 — Top Field",
     "journal of urban economics": "2 — Top Field",
+    "american journal of agricultural economics": "2 — Top Field",
+    "demography": "2 — Top Field",
+    "population and development review": "2 — Top Field",
+    "the lancet global health": "2 — Top Field",
+    "the lancet planetary health": "2 — Top Field",
+    "bmj global health": "2 — Top Field",
+    "bulletin of the world health organization": "2 — Top Field",
+    "health affairs": "2 — Top Field",
+    "american journal of clinical nutrition": "2 — Top Field",
+    "journal of the royal statistical society": "2 — Top Field",
+    "global environmental change": "2 — Top Field",
+    "journal of environmental economics and management": "2 — Top Field",
+    "plos medicine": "2 — Top Field",
+    "jama internal medicine": "2 — Top Field",
+    "jama network open": "2 — Top Field",
+
+    # --- Tier 3: quality, indexed, peer-reviewed field journal -----------
     "food policy": "3 — Quality Field",
     "journal of agricultural economics": "3 — Quality Field",
     "agricultural economics": "3 — Quality Field",
-    "american journal of agricultural economics": "3 — Quality Field",
     "journal of african economies": "3 — Quality Field",
     "african development review": "3 — Quality Field",
     "oxford development studies": "3 — Quality Field",
     "health economics": "3 — Quality Field",
     "journal of health economics": "3 — Quality Field",
-    "demography": "3 — Quality Field",
     "land economics": "3 — Quality Field",
     "european review of agricultural economics": "3 — Quality Field",
     "world bank research observer": "3 — Quality Field",
@@ -225,22 +293,73 @@ _JOURNAL_TIERS = {
     "educational research review": "3 — Quality Field",
     "world development perspectives": "3 — Quality Field",
     "the european journal of development research": "3 — Quality Field",
+    "european journal of development research": "3 — Quality Field",
+    "applied economics": "3 — Quality Field",
+    "tobacco control": "3 — Quality Field",
+    "globalization and health": "3 — Quality Field",
+    "current developments in nutrition": "3 — Quality Field",
     "review of development economics": "3 — Quality Field",
     "journal of international development": "3 — Quality Field",
+    "journal of economic behavior & organization": "3 — Quality Field",
     "agricultural and food economics": "3 — Quality Field",
     "food and energy security": "3 — Quality Field",
-    "population and development review": "3 — Quality Field",
     "social science & medicine": "3 — Quality Field",
     "american journal of epidemiology": "3 — Quality Field",
     "maternal & child nutrition": "3 — Quality Field",
+    "maternal and child nutrition": "3 — Quality Field",
     "journal of nutrition": "3 — Quality Field",
+    "bmc public health": "3 — Quality Field",
+    "international journal for equity in health": "3 — Quality Field",
+    "bmc health services research": "3 — Quality Field",
+    "global health science and practice": "3 — Quality Field",
+    "social indicators research": "3 — Quality Field",
+    "land use policy": "3 — Quality Field",
+    "international journal of social economics": "3 — Quality Field",
+    "health economics review": "3 — Quality Field",
+    "agricultural systems": "3 — Quality Field",
+    "demographic research": "3 — Quality Field",
+    "african journal of food agriculture nutrition and development": "3 — Quality Field",
+    "malaria journal": "3 — Quality Field",
+    "cogent food & agriculture": "3 — Quality Field",
+    "development southern africa": "3 — Quality Field",
+    "journal of global health": "3 — Quality Field",
+    "population and environment": "3 — Quality Field",
+    "environment and development economics": "3 — Quality Field",
+    "african journal of agricultural and resource economics": "3 — Quality Field",
+    "energy economics": "3 — Quality Field",
+    "african journal of agricultural research": "3 — Quality Field",
+    "journal of agriculture and food research": "3 — Quality Field",
+    "development policy review": "3 — Quality Field",
+    "studies in family planning": "3 — Quality Field",
+    "international journal of educational development": "3 — Quality Field",
+    "review of economics of the household": "3 — Quality Field",
+    "review of income and wealth": "3 — Quality Field",
+    "agribusiness": "3 — Quality Field",
+    "feminist economics": "3 — Quality Field",
+    "journal of development effectiveness": "3 — Quality Field",
+    "journal of agricultural and applied economics": "3 — Quality Field",
+    "child indicators research": "3 — Quality Field",
+    "ecological economics": "3 — Quality Field",
+    "energy policy": "3 — Quality Field",
+    "agricultural and resource economics review": "3 — Quality Field",
+    "international journal of agricultural economics": "3 — Quality Field",
+    "health research policy and systems": "3 — Quality Field",
+    "asian development review": "3 — Quality Field",
+    "ssm - population health": "3 — Quality Field",
+    "american journal of tropical medicine and hygiene": "3 — Quality Field",
+    "forest policy and economics": "3 — Quality Field",
+    "journal of comparative economics": "3 — Quality Field",
+    "economics & human biology": "3 — Quality Field",
+    "environmental research letters": "3 — Quality Field",
+    "journal of asian economics": "3 — Quality Field",
+    "ghana journal of development studies": "3 — Quality Field",
+    "agrekon": "3 — Quality Field",
     "plos one": "4 — Other Peer-Reviewed",
     "plos global public health": "4 — Other Peer-Reviewed",
     "sustainability": "4 — Other Peer-Reviewed",
     "nutrients": "4 — Other Peer-Reviewed",
     "heliyon": "4 — Other Peer-Reviewed",
     "scientific reports": "4 — Other Peer-Reviewed",
-    "bmc public health": "4 — Other Peer-Reviewed",
     "bmc global and public health": "4 — Other Peer-Reviewed",
     "frontiers in public health": "4 — Other Peer-Reviewed",
     "frontiers in health services": "4 — Other Peer-Reviewed",
@@ -258,19 +377,42 @@ _JOURNAL_TIERS = {
     "statistical journal of the iaos": "4 — Other Peer-Reviewed",
     "statistics in transition new series": "4 — Other Peer-Reviewed",
     "international journal of environmental research and public health": "4 — Other Peer-Reviewed",
-    "nber": "WP — Working Paper",
-    "iza": "WP — Working Paper",
-    "ssrn": "WP — Working Paper",
-    "cepr": "WP — Working Paper",
-    "world bank policy research": "WP — Working Paper",
-    "ifpri discussion": "WP — Working Paper",
+    "bmj open": "4 — Other Peer-Reviewed",
+    # Nature-brand family: flagship only at Tier 1, the broader-scope /
+    # less-selective siblings one notch down. Listed by exact full name
+    # rather than matched off a bare "nature" substring, which would also
+    # catch unrelated titles like "Human Nature Journal of Social Sciences".
+    "nature medicine": "1 — Top General",
+    "nature communications": "2 — Top Field",
+    "nature ecology & evolution": "2 — Top Field",
+    "nature food": "2 — Top Field",
+    "nature human behaviour": "2 — Top Field",
+    "nature plants": "2 — Top Field",
+    "nature sustainability": "2 — Top Field",
+    # Same idea for the Lancet family: the flagship is caught by the bare
+    # "the lancet" entry above; regional/specialty spin-offs are still
+    # excellent but a step below it, so they get their own explicit entry
+    # rather than falling through to the flagship's tier.
+    "the lancet regional health": "3 — Quality Field",
+    "the lancet infectious diseases": "2 — Top Field",
+    "the lancet public health": "2 — Top Field",
+
+    # These used to sit here mapped to "WP", duplicating (and, via loose
+    # substring matching, actively undermining) the working-paper detection
+    # `detect_pub_type()` already does. A genuine working paper never
+    # reaches this dict — `detect_journal_tier()` returns "WP" from
+    # `pub_type` before ever looking at `venue` (see below). Keeping them
+    # here only meant a real journal whose name happened to contain "iza"
+    # (Journal of Economic Behavior & *Organization*) or "cepr" etc. as a
+    # substring got silently mislabeled as a working paper.
 }
 
 
 def detect_journal_tier(venue: str, pub_type: str) -> str:
     """
     1. Working papers / repositories / theses / preprints / eBooks -> WP
-    2. Exact or substring match in the tier list -> that tier
+    2. Exact match in the tier list -> that tier; failing that, the longest
+       (most specific) key that's a substring of the venue -> its tier
     3. Any remaining journal article -> Tier 4, never blank
     4. No venue -> blank
     """
@@ -285,9 +427,19 @@ def detect_journal_tier(venue: str, pub_type: str) -> str:
     if v:
         if v in _JOURNAL_TIERS:
             return _JOURNAL_TIERS[v]
-        for key, tier in _JOURNAL_TIERS.items():
-            if key in v:
-                return tier
+        # Substring fallback, for venue strings OpenAlex decorates with
+        # extra text. Keys under 10 chars are skipped here (still usable
+        # for the exact match above) since a short key is too likely to be
+        # a coincidental substring of an unrelated journal's name — this is
+        # what let "iza" match "...Organization" and "hal" match
+        # "Ophthalmology". Among the keys that do match, the longest one
+        # wins, so a specific entry (e.g. "the lancet regional health")
+        # always beats a shorter, more general one it's nested inside
+        # (e.g. "the lancet") regardless of dict order.
+        candidates = [(key, tier) for key, tier in _JOURNAL_TIERS.items()
+                      if len(key) >= 10 and key in v]
+        if candidates:
+            return max(candidates, key=lambda kt: len(kt[0]))[1]
 
     if "Journal Article" in pt:
         return "4 — Other Peer-Reviewed"

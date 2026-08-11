@@ -123,7 +123,7 @@ function renderTierPie(container, tiers) {
   legend.style.marginTop = "10px";
   tiers.forEach((t, i) => {
     const row = document.createElement("div");
-    row.innerHTML = `<span class="swatch" style="background:${colors[i % colors.length]}"></span>${t.label} — ${fmt.format(t.count)} (${pct(t.count / total)})`;
+    row.innerHTML = `<span class="swatch" style="background:${colors[i % colors.length]}"></span>${t.label}: ${fmt.format(t.count)} (${pct(t.count / total)})`;
     legend.appendChild(row);
   });
 
@@ -138,38 +138,40 @@ function gateCard(n, sharePct, desc) {
   return div;
 }
 
-function renderHero(m) {
+function renderHero(m, analysisFyStart) {
   document.getElementById("stat-total").textContent = fmt.format(m.total_papers);
+  document.getElementById("stat-total-sub").textContent =
+    `Papers confirmed to use LSMS survey data, ${analysisFyStart} (the start of the current LSMS-ISA survey program) to present`;
   document.getElementById("stat-flow").textContent = fmt.format(m.most_recent_completed_fy_count);
-  document.getElementById("stat-flow-sub").textContent = `New papers in ${m.most_recent_completed_fy} (WBG fiscal year)`;
+  document.getElementById("stat-flow-sub").textContent = `New papers in ${m.most_recent_completed_fy} (World Bank fiscal year)`;
   document.getElementById("stat-share").textContent = pct(m.geography.any_author_africa_recent_fy.share);
   document.getElementById("stat-share-sub").textContent =
-    `${fmt.format(m.geography.any_author_africa_recent_fy.count)} of ${fmt.format(m.most_recent_completed_fy_count)} ${m.most_recent_completed_fy} papers had an African-affiliated author`;
+    `${fmt.format(m.geography.any_author_africa_recent_fy.count)} of ${fmt.format(m.most_recent_completed_fy_count)} ${m.most_recent_completed_fy} papers had an author based in Africa`;
 }
 
 function renderGates(m) {
   const g1 = document.getElementById("gate1-grid");
-  g1.appendChild(gateCard(m.gate1.tier_a.count, pct(m.gate1.tier_a.share), "Tier A — unambiguous survey name (e.g. “Uganda National Panel Survey”)"));
-  g1.appendChild(gateCard(m.gate1.tier_b.count, pct(m.gate1.tier_b.share), "Tier B — generic survey name + country context"));
-  g1.appendChild(gateCard(m.gate1.tier_c.count, pct(m.gate1.tier_c.share), "Tier C — short acronym + country context + case check"));
+  g1.appendChild(gateCard(m.gate1.tier_a.count, pct(m.gate1.tier_a.share), "Exact match: the survey's full name leaves no doubt, for example “Uganda National Panel Survey”"));
+  g1.appendChild(gateCard(m.gate1.tier_b.count, pct(m.gate1.tier_b.share), "Generic name plus country: a common survey name confirmed by the country's name appearing nearby"));
+  g1.appendChild(gateCard(m.gate1.tier_c.count, pct(m.gate1.tier_c.share), "Short acronym plus country: an acronym such as “LSMS” confirmed by the country's name appearing nearby"));
 
   const g2 = document.getElementById("gate2-grid");
-  g2.appendChild(gateCard(m.gate2.well_backed.count, pct(m.gate2.well_backed.share), "Well-backed — identity and use evidence beyond the minimum"));
-  g2.appendChild(gateCard(m.gate2.borderline.count, pct(m.gate2.borderline.share), "Borderline — both axes exactly at the minimum threshold"));
-  g2.appendChild(gateCard(m.gate2.strong_use.count, pct(m.gate2.strong_use.share), "Strong data-use evidence — methods language or microdata citation"));
+  g2.appendChild(gateCard(m.gate2.well_backed.count, pct(m.gate2.well_backed.share), "Strong evidence: clear confirmation on both questions above"));
+  g2.appendChild(gateCard(m.gate2.borderline.count, pct(m.gate2.borderline.share), "Minimum confirmation: the paper just cleared both questions"));
+  g2.appendChild(gateCard(m.gate2.strong_use.count, pct(m.gate2.strong_use.share), "Detailed evidence of data use: the paper describes its methods using the data, or cites the official dataset"));
 
   const totalsEl = document.getElementById("totals-summary");
   const rows = [
-    ["Total papers retained", fmt.format(m.total_papers)],
+    ["Total confirmed papers", fmt.format(m.total_papers)],
     ["Peer-reviewed journal articles", `${fmt.format(m.peer_reviewed.count)} (${pct(m.peer_reviewed.share)})`],
     ["World Bank–affiliated papers", `${fmt.format(m.wb_affiliated.count)} (${pct(m.wb_affiliated.share)})`],
-    ["Multilateral org–affiliated", `${fmt.format(m.multilateral.count)} (${pct(m.multilateral.share)})`],
+    ["Other multilateral organization–affiliated papers", `${fmt.format(m.multilateral.count)} (${pct(m.multilateral.share)})`],
   ];
   if (m.total_retrieved !== null) {
-    rows.push(["Total retrieved before exclusion", fmt.format(m.total_retrieved)]);
-    rows.push(["Excluded — mentions survey, no evidence of use", fmt.format(m.excluded_no_use)]);
-    rows.push(["Excluded — not confidently our survey", fmt.format(m.excluded_no_identity)]);
-    rows.push(["Excluded — publication type can't be empirical use", fmt.format(m.excluded_vetoed)]);
+    rows.push(["Total papers found before this filtering", fmt.format(m.total_retrieved)]);
+    rows.push(["Mentions an LSMS survey, but shows no evidence of using the data", fmt.format(m.excluded_no_use)]);
+    rows.push(["Likely a different survey with a similar name", fmt.format(m.excluded_no_identity)]);
+    rows.push(["Not a type of publication that could contain original data analysis", fmt.format(m.excluded_vetoed)]);
   }
   totalsEl.innerHTML = rows.map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join("");
 }
@@ -177,10 +179,10 @@ function renderGates(m) {
 function renderGeography(m) {
   const grid = document.getElementById("geo-grid");
   const g = m.geography;
-  grid.appendChild(gateCard(g.any_author_africa.count, pct(g.any_author_africa.share), "Any author at an African institution"));
-  grid.appendChild(gateCard(g.first_author_africa.count, pct(g.first_author_africa.share), "First author at an African institution"));
-  grid.appendChild(gateCard(g.all_authors_ssa.count, pct(g.all_authors_ssa.share), "All authors at a Sub-Saharan African institution"));
-  grid.appendChild(gateCard(g.unclassified.count, pct(g.unclassified.share), "Geography unclassified (no OpenAlex institution data)"));
+  grid.appendChild(gateCard(g.any_author_africa.count, pct(g.any_author_africa.share), "At least one author based at an African institution"));
+  grid.appendChild(gateCard(g.first_author_africa.count, pct(g.first_author_africa.share), "Lead author based at an African institution"));
+  grid.appendChild(gateCard(g.all_authors_ssa.count, pct(g.all_authors_ssa.share), "Every author based at a Sub-Saharan African institution"));
+  grid.appendChild(gateCard(g.unclassified.count, pct(g.unclassified.share), "Author location unknown (no institution data available)"));
 }
 
 // ── Papers table ──────────────────────────────────────────────────────
@@ -232,7 +234,7 @@ function renderTable() {
     const africa = [
       p.is_any_author_africa ? '<span class="badge yes">Africa (any)</span>' : "",
       p.is_first_author_africa ? '<span class="badge yes">Africa (1st)</span>' : "",
-    ].filter(Boolean).join(" ") || '<span class="badge no">—</span>';
+    ].filter(Boolean).join(" ") || '<span class="badge no">n/a</span>';
     return `<tr>
       <td class="title-cell">
         <a href="${escapeAttr(link)}" target="_blank" rel="noopener">${escapeHtml(p.title || "Untitled")}</a>
@@ -278,7 +280,7 @@ async function main() {
     new Date(data.generated_at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
   document.getElementById("source-file").textContent = data.source_file;
 
-  renderHero(data.metrics);
+  renderHero(data.metrics, data.analysis_fy_start);
   renderFlowChart(document.getElementById("flow-chart"), data.flow);
   renderShareChart(document.getElementById("share-chart"), data.flow);
   renderTierPie(document.getElementById("tier-pie"), data.metrics.journal_tiers);
