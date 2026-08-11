@@ -38,6 +38,24 @@ TIER_LABELS = [
     "Tier 3: Other Peer-Reviewed", "Working Paper / Non-Journal",
 ]
 
+# metadata.py's tier labels/numbering have changed a few times (Tier 1 and
+# Tier 2 used to be separate "Top General Econ" / "Top Field" buckets before
+# merging into one). The chart reads journal_tier straight from whichever
+# .xlsx was last exported, which may predate the current scheme, so map old
+# label spellings onto the current TIER_ORDER instead of silently dropping
+# them (they'd just fail the `if jt in tier_counts` check otherwise).
+_LEGACY_TIER_LABELS = {
+    "1 — Top General Econ": "1 — Top General or Top Field",
+    "1 — Top General": "1 — Top General or Top Field",
+    "2 — Top Field": "1 — Top General or Top Field",
+    "3 — Quality Field": "2 — Quality Field",
+    "4 — Other Peer-Reviewed": "3 — Other Peer-Reviewed",
+}
+
+
+def _current_tier(jt: str) -> str:
+    return _LEGACY_TIER_LABELS.get(jt, jt)
+
 PAPER_COLS = [
     "title", "doi", "year", "fy", "pub_type", "journal_tier",
     "peer_reviewed_auto", "venue", "authors", "first_author", "link",
@@ -128,6 +146,7 @@ def build_metrics(papers, excluded, current_fy, completed_fys):
 
     tier_counts = {t: 0 for t in TIER_ORDER}
     for jt in papers["journal_tier"].fillna(""):
+        jt = _current_tier(jt)
         if jt in tier_counts:
             tier_counts[jt] += 1
 
