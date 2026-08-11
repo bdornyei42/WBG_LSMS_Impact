@@ -24,9 +24,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 DOCS = os.path.join(HERE, "docs")
 
 # LSMS-ISA, the current phase of the survey program, began in FY09; the
-# headline stats and the flow/share charts all cover that same FY09-present
-# window so the numbers on the page agree with each other. Papers from
-# earlier LSMS rounds still show up in the full papers table below.
+# headline stats, the flow/share charts, and the papers table all cover that
+# same FY09-present window so the numbers on the page agree with each other.
 ANALYSIS_FY_START = 2009
 
 TIER_ORDER = [
@@ -261,9 +260,9 @@ def main():
         json.dump(data, f, ensure_ascii=False, indent=None, separators=(",", ":"))
 
     with open(os.path.join(DOCS, "papers.json"), "w", encoding="utf-8") as f:
-        json.dump(build_papers_json(papers), f, ensure_ascii=False, indent=None, separators=(",", ":"))
+        json.dump(build_papers_json(recent), f, ensure_ascii=False, indent=None, separators=(",", ":"))
 
-    print(f"[build_site] {len(papers)} papers -> docs/data.json, docs/papers.json (source: {source_file})")
+    print(f"[build_site] {len(recent)} papers -> docs/data.json, docs/papers.json (source: {source_file})")
 
 
 if __name__ == "__main__":
