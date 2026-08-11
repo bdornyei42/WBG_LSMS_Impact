@@ -71,6 +71,25 @@ _PUBTYPE_EXCLUDE = {"retraction", "reference-entry", "editorial", "supplementary
 _PUBTYPE_FOLD_OTHER = {"data-paper", "book", "book-chapter", "conference-paper"}
 
 
+def build_research_topics(papers):
+    # research_topics is a ", "-joined list of topic names, but one topic
+    # name ("Poverty, Income, & Welfare") itself contains commas, so a plain
+    # split(",") would shred it. Membership-check against the canonical topic
+    # names instead -- none of them is a substring of another.
+    if "research_topics" not in papers.columns:
+        return []
+    from metadata import _TOPIC_KEYWORDS
+    counts = {t: 0 for t in _TOPIC_KEYWORDS}
+    for val in papers["research_topics"].fillna(""):
+        s = str(val)
+        for t in _TOPIC_KEYWORDS:
+            if t in s:
+                counts[t] += 1
+    rows = [{"label": lbl, "count": n} for lbl, n in counts.items() if n]
+    rows.sort(key=lambda r: r["count"], reverse=True)
+    return rows
+
+
 def build_publication_types(papers):
     raw = papers["publication_type"].fillna("").str.strip().str.lower()
     raw = raw[~raw.isin(_PUBTYPE_EXCLUDE)]
@@ -229,6 +248,7 @@ def build_metrics(papers, excluded, current_fy, completed_fys):
             for key, lbl in zip(TIER_ORDER, TIER_LABELS)
         ],
         "publication_types": build_publication_types(papers),
+        "research_topics": build_research_topics(papers),
     }
 
 

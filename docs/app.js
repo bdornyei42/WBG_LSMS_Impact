@@ -236,6 +236,50 @@ function renderTierPie(container, tiers, colors = TIER_COLORS) {
   container.appendChild(legend);
 }
 
+function renderTopicsBar(container, topics, totalPapers, colors = PUBTYPE_COLORS) {
+  if (!topics || !topics.length) {
+    container.textContent = "No topic data available.";
+    return;
+  }
+  const rowH = 26, padL = 200, padR = 46, padT = 4, padB = 4;
+  const W = 620, plotW = W - padL - padR;
+  const H = topics.length * rowH + padT + padB;
+  const max = Math.max(...topics.map((t) => t.count)) * 1.06 || 1;
+
+  const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}` });
+
+  topics.forEach((t, i) => {
+    const y = padT + i * rowH;
+    const barH = rowH - 10;
+    const w = Math.max((t.count / max) * plotW, 1);
+    const bar = svgEl("rect", {
+      class: "topic-bar", x: padL, y: y + (rowH - barH) / 2,
+      width: w, height: barH, rx: 3,
+      style: `fill:${colors[i % colors.length]}`,
+    });
+    const tip = `<div class="tt-title">${t.label}</div>` +
+      `<div class="tt-row">${fmt.format(t.count)} papers (${pct(t.count / totalPapers)} of all papers)</div>`;
+    bar.addEventListener("mouseenter", (e) => showTooltip(e, tip));
+    bar.addEventListener("mousemove", moveTooltip);
+    bar.addEventListener("mouseleave", hideTooltip);
+    svg.appendChild(bar);
+
+    const lbl = svgEl("text", {
+      class: "axis-label", x: padL - 8, y: y + rowH / 2 + 4, "text-anchor": "end",
+    });
+    lbl.textContent = t.label;
+    svg.appendChild(lbl);
+
+    const val = svgEl("text", {
+      class: "bar-label", x: padL + w + 6, y: y + rowH / 2 + 4,
+    });
+    val.textContent = fmt.format(t.count);
+    svg.appendChild(val);
+  });
+
+  container.appendChild(svg);
+}
+
 function gateCard(n, sharePct, desc) {
   const div = document.createElement("div");
   div.className = "gate-card";
@@ -388,6 +432,7 @@ async function main() {
   renderShareChart(document.getElementById("share-chart"), data.flow);
   renderTierPie(document.getElementById("tier-pie"), data.metrics.journal_tiers);
   renderTierPie(document.getElementById("pubtype-pie"), data.metrics.publication_types, PUBTYPE_COLORS);
+  renderTopicsBar(document.getElementById("topics-chart"), data.metrics.research_topics, data.metrics.total_papers);
   renderGates(data.metrics);
   renderGeography(data.metrics);
 
