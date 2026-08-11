@@ -68,7 +68,7 @@ def _cap_pub_type(v) -> str:
 _PUBTYPE_EXCLUDE = {"retraction", "reference-entry", "editorial", "supplementary-materials", "review"}
 # Folded into the existing "other" bucket rather than dropped or given their
 # own small slice.
-_PUBTYPE_FOLD_OTHER = {"data-paper", "book", "book-chapter", "conference-paper"}
+_PUBTYPE_FOLD_OTHER = {"data-paper", "book", "book-chapter"}
 
 
 def build_research_topics(papers):

@@ -178,16 +178,36 @@ const TIER_COLORS = ["#1F3864", "#2E75B6", "#5B9BD5", "#9DC3E6", "#DEEBF7"];
 // Wider than TIER_COLORS since publication_type (OpenAlex's own category,
 // unlike our small fixed set of journal tiers) can run to a dozen-plus
 // distinct values; ordered so the biggest slice gets the most saturated color.
+// Orange is left out of this rotation -- it's reserved for "Conference Paper"
+// via PUBTYPE_COLOR_OVERRIDES below, so it never doubles up with a rotation slot.
 const PUBTYPE_COLORS = [
-  "#1F5C99", "#009FDA", "#0091B4", "#008980", "#4455A0", "#E65100",
+  "#1F5C99", "#009FDA", "#0091B4", "#008980", "#4455A0",
   "#004370", "#5B9BD5", "#9DC3E6", "#7A8CC4", "#6FBFB0", "#F2A354",
   "#8FAFC9", "#B7C4D6",
 ];
+const PUBTYPE_COLOR_OVERRIDES = { "Conference Paper": "#E65100" };
 
-function renderTierPie(container, tiers, colors = TIER_COLORS) {
+function renderTierPie(container, tiers, colors = TIER_COLORS, overrides = {}) {
   const total = tiers.reduce((s, t) => s + t.count, 0) || 1;
   const cx = 130, cy = 130, r = 110;
   const svg = svgEl("svg", { viewBox: "0 0 260 260" });
+
+  // Wedges stop just short of the exact center (innerR) rather than meeting
+  // at one shared point. A full pie has every wedge's two straight edges
+  // converge on the identical pixel, so stroking those edges for a separator
+  // line piles them all up into a messy cluster right there. Cutting a
+  // (visually imperceptible) small hole spreads those edge endpoints around
+  // a tiny circle instead of stacking them on one point, so the separator
+  // lines stay crisp all the way in.
+  const innerR = 1.2;
+
+  // Resolve each slice's color once, up front, so the pie and the legend
+  // below always agree. Overridden labels take their fixed color; everything
+  // else draws the next unused color off the rotation, so reserving a color
+  // for one label doesn't leave a gap or shift the rest out of sync.
+  let rotIdx = 0;
+  const sliceColors = tiers.map((t) =>
+    overrides[t.label] || colors[rotIdx++ % colors.length]);
 
   let angle = -Math.PI / 2;
   tiers.forEach((t, i) => {
@@ -196,10 +216,18 @@ function renderTierPie(container, tiers, colors = TIER_COLORS) {
     const x1 = cx + r * Math.cos(angle), y1 = cy + r * Math.sin(angle);
     const x2 = cx + r * Math.cos(next), y2 = cy + r * Math.sin(next);
     const large = frac > 0.5 ? 1 : 0;
-    const d = frac >= 0.9995
-      ? `M ${cx - r},${cy} A ${r},${r} 0 1 1 ${cx + r},${cy} A ${r},${r} 0 1 1 ${cx - r},${cy} Z`
-      : `M ${cx},${cy} L ${x1.toFixed(1)},${y1.toFixed(1)} A ${r},${r} 0 ${large} 1 ${x2.toFixed(1)},${y2.toFixed(1)} Z`;
-    const slice = svgEl("path", { d, fill: colors[i % colors.length], class: "pie-slice" });
+    const isFull = frac >= 0.9995;
+    let d;
+    if (isFull) {
+      d = `M ${cx - r},${cy} A ${r},${r} 0 1 1 ${cx + r},${cy} A ${r},${r} 0 1 1 ${cx - r},${cy} Z`;
+    } else {
+      const ix1 = cx + innerR * Math.cos(angle), iy1 = cy + innerR * Math.sin(angle);
+      const ix2 = cx + innerR * Math.cos(next), iy2 = cy + innerR * Math.sin(next);
+      d = `M ${ix1.toFixed(1)},${iy1.toFixed(1)} L ${x1.toFixed(1)},${y1.toFixed(1)} ` +
+        `A ${r},${r} 0 ${large} 1 ${x2.toFixed(1)},${y2.toFixed(1)} ` +
+        `L ${ix2.toFixed(1)},${iy2.toFixed(1)} A ${innerR},${innerR} 0 ${large} 0 ${ix1.toFixed(1)},${iy1.toFixed(1)} Z`;
+    }
+    const slice = svgEl("path", { d, fill: sliceColors[i], class: "pie-slice" });
 
     // pull the wedge outward along its own mid-angle on hover, rather than a fixed
     // direction, so every slice - whatever its position on the circle - moves away
@@ -228,7 +256,7 @@ function renderTierPie(container, tiers, colors = TIER_COLORS) {
   legend.style.marginTop = "10px";
   tiers.forEach((t, i) => {
     const row = document.createElement("div");
-    row.innerHTML = `<span class="swatch" style="background:${colors[i % colors.length]}"></span>${t.label}: ${fmt.format(t.count)} (${pct(t.count / total)})`;
+    row.innerHTML = `<span class="swatch" style="background:${sliceColors[i]}"></span>${t.label}: ${fmt.format(t.count)} (${pct(t.count / total)})`;
     legend.appendChild(row);
   });
 
@@ -290,7 +318,7 @@ function gateCard(n, sharePct, desc) {
 function renderHero(m) {
   document.getElementById("stat-total").textContent = fmt.format(m.total_papers);
   document.getElementById("stat-total-sub").textContent =
-    `Papers confirmed to use data from LSMS-supported longitudinal in-person and phone surveys since 2008 (under LSMS-ISA, LSMS-HFPS, and other on-going initiatives)`;
+    `Papers confirmed to use data from LSMS-supported longitudinal in-person and phone surveys since 2008`;
   document.getElementById("stat-flow").textContent = fmt.format(m.most_recent_completed_fy_count);
   document.getElementById("stat-flow-sub").textContent = `New papers in ${m.most_recent_completed_fy} (World Bank fiscal year)`;
   document.getElementById("stat-share").textContent = pct(m.geography.any_author_africa_recent_fy.share);
@@ -431,7 +459,7 @@ async function main() {
   renderFlowChart(document.getElementById("flow-chart"), data.flow);
   renderShareChart(document.getElementById("share-chart"), data.flow);
   renderTierPie(document.getElementById("tier-pie"), data.metrics.journal_tiers);
-  renderTierPie(document.getElementById("pubtype-pie"), data.metrics.publication_types, PUBTYPE_COLORS);
+  renderTierPie(document.getElementById("pubtype-pie"), data.metrics.publication_types, PUBTYPE_COLORS, PUBTYPE_COLOR_OVERRIDES);
   renderTopicsBar(document.getElementById("topics-chart"), data.metrics.research_topics, data.metrics.total_papers);
   renderGates(data.metrics);
   renderGeography(data.metrics);

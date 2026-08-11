@@ -36,7 +36,7 @@
     <div class="stat-card">
       <div class="label">Total</div>
       <div class="value" id="stat-total">...</div>
-      <div class="sub" id="stat-total-sub">Papers confirmed to use data from LSMS-supported longitudinal in-person and phone surveys since 2008 (under LSMS-ISA, LSMS-HFPS, and other on-going initiatives)</div>
+      <div class="sub" id="stat-total-sub">Papers confirmed to use data from LSMS-supported longitudinal in-person and phone surveys since 2008</div>
     </div>
     <div class="stat-card flow">
       <div class="label">Flow</div>
@@ -53,7 +53,7 @@
   <div class="chart-grid">
     <section class="panel">
       <h2>Papers using data from LSMS-supported longitudinal surveys, per FY</h2>
-      <p class="panel-sub">World Bank fiscal year, 1 July - 30 June.</p>
+      <p class="panel-sub">World Bank fiscal year (July 1 - June 30).</p>
       <div class="chart" id="flow-chart"></div>
     </section>
     <section class="panel">
@@ -70,23 +70,13 @@
   <div class="chart-grid" style="grid-template-columns: 1fr 1.4fr;">
     <section class="panel">
       <h2>Papers by publication type</h2>
-      <p class="panel-sub">How the confirmed papers break down by the kind of publication.</p>
+      <p class="panel-sub">How the confirmed papers break down by the kind of publication, based on OpenAlex's data. Other includes books and book chapters.</p>
       <div class="chart" id="pubtype-pie" style="max-width:260px;"></div>
     </section>
     <section class="panel">
       <h2>Papers by research topic</h2>
-      <p class="panel-sub">Topics are auto-tagged by keyword matching on each paper's title and abstract. A paper can match more than one topic, so the counts add up to more than the total number of papers.</p>
+      <p class="panel-sub">Topics are auto-tagged by keyword matching algorithm. A paper can match more than one topic, so the counts add up to more than the total number of papers.</p>
       <div class="chart" id="topics-chart"></div>
-    </section>
-  </div>
-
-  <div class="chart-grid">
-    <section class="panel">
-      <h2>Totals</h2>
-      <p class="panel-sub">All figures below cover the confirmed papers shown in the Total figure above.</p>
-      <table style="width:100%; font-size:13.5px; border-collapse:collapse;" id="totals-table">
-        <tbody id="totals-summary"></tbody>
-      </table>
     </section>
   </div>
 
@@ -133,6 +123,14 @@
   <details class="panel more-info">
     <summary>Additional info: how papers are found and confirmed</summary>
     <div class="more-info-body">
+      <section class="subpanel">
+        <h2>Totals</h2>
+        <p class="panel-sub">All figures below cover the confirmed papers shown in the Total figure above.</p>
+        <table style="width:100%; font-size:13.5px; border-collapse:collapse;" id="totals-table">
+          <tbody id="totals-summary"></tbody>
+        </table>
+      </section>
+
       <section class="subpanel">
         <h2>How each paper was found</h2>
         <p class="panel-sub">Papers are found by searching for the name of an LSMS survey. Some survey names are unmistakable on their own; others are more generic and need the country's name nearby to confirm a real match. This shows how strong that match was, for every paper found.</p>
