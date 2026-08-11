@@ -1,0 +1,54 @@
+name: Daily LSMS update
+
+on:
+  schedule:
+    - cron: "0 7 * * *"   # 07:00 UTC daily; edit to change the time
+  workflow_dispatch: {}    # adds a manual "Run workflow" button in the Actions tab
+
+permissions:
+  contents: write
+
+concurrency:
+  group: lsms-update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - run: pip install -r requirements.txt
+
+      - name: Run the update pipeline
+        env:
+          OPENALEX_API_KEY: ${{ secrets.OPENALEX_API_KEY }}
+        run: |
+          if [ -z "$OPENALEX_API_KEY" ]; then
+            echo "::error::OPENALEX_API_KEY repo secret is not set. Add it under" \
+                 "Settings > Secrets and variables > Actions before this can run."
+            exit 1
+          fi
+          python discover.py --api-key "$OPENALEX_API_KEY" --update -q \
+            --merge-existing LSMS_papers_latest.xlsx \
+            --output LSMS_papers_latest.xlsx
+
+      - name: Rebuild the dashboard
+        run: python build_site.py
+
+      - name: Commit and push if anything changed
+        run: |
+          git config user.name "lsms-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add LSMS_papers_latest.xlsx LSMS_papers_latest.csv docs/
+          if git diff --cached --quiet; then
+            echo "No new papers found; nothing to commit."
+          else
+            git commit -m "Automated daily update ($(date -u +%Y-%m-%d))"
+            git push
+          fi

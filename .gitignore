@@ -2,6 +2,10 @@
 LSMS_papers_*.xlsx
 LSMS_papers_*.csv
 LSMS_papers_*.png
+# ...except the one the daily GitHub Actions update overwrites in place, which
+# is tracked so the next scheduled run has something to diff against.
+!LSMS_papers_latest.xlsx
+!LSMS_papers_latest.csv
 ~$*.xlsx
 ~$*.xlsm
 ~$*.docx

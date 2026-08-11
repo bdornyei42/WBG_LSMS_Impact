@@ -442,7 +442,7 @@ what OpenAlex returns.
   and working-paper series (NBER, RePEc, SSRN, MPRA, Econstor) as distinct
   from genuine peer-reviewed journal articles.
 - `_JOURNAL_TIERS`: a curated lookup of ~165 named journals to a tier label
-  (Tier 1 = top general-interest venues in any discipline — AER/QJE/JPE/
+  (Tier 1 = top general-interest venues in any discipline: AER/QJE/JPE/
   Econometrica alongside Nature/Science/PNAS/The Lancet; Tier 2 = top field
   journals, one per discipline (JDE and World Development for dev econ,
   Demography and Population and Development Review for demography, The
@@ -450,7 +450,7 @@ what OpenAlex returns.
   Tier 3 = quality field journals; Tier 4 = other recognised peer-reviewed
   journals, including broad-scope/mega-journals like PLOS ONE, BMJ Open, and
   the MDPI titles). Deliberately spans health, nutrition, agriculture,
-  demography, and environment as well as economics — LSMS-linked papers get
+  demography, and environment as well as economics; LSMS-linked papers get
   published across all of them, so a tier list that only ranked econ
   journals meant a genuinely top nutrition or public-health paper still
   landed in the Tier 4 catch-all by default. Based on standard field
@@ -649,11 +649,36 @@ on disk, so it travels with the folder and the key comes too.
 
 ---
 
-## Scheduling Possibility
+## Automated daily updates (GitHub Actions)
 
-Cron example:
+`.github/workflows/update.yml` runs the pipeline on a schedule (07:00 UTC by
+default, edit the `cron` line to change it) without needing anyone's computer
+to be on. Each run:
 
-```
-0 8 1 1,4,7,10 * cd /path/to/pipeline && python discover.py \
-    --api-key $OPENALEX_KEY --merge-existing master.xlsx
-```
+1. Runs `discover.py --update`, comparing against `LSMS_papers_latest.xlsx`,
+   the single tracked export the workflow overwrites in place.
+2. Runs `build_site.py` to refresh `docs/`.
+3. Commits and pushes both if anything changed, which republishes the GitHub
+   Pages dashboard automatically.
+
+Two one-time setup steps, both in the repo's GitHub settings (neither can be
+done from a chat assistant, since both involve credentials or repo
+permissions):
+
+1. **Add the API key as a secret.** Settings > Secrets and variables >
+   Actions > New repository secret, named `OPENALEX_API_KEY`, value your free
+   OpenAlex key. Never paste the key directly into the workflow file or a
+   commit; a repo secret is encrypted and only exposed to the workflow run.
+2. **Confirm Actions can push commits.** The workflow requests
+   `contents: write` for itself, which is normally enough. If a run still
+   fails to push, go to Settings > Actions > General > Workflow permissions
+   and select "Read and write permissions."
+
+Once both are set, use the "Run workflow" button under the Actions tab to
+trigger it manually and confirm it works, rather than waiting for the next
+scheduled run.
+
+A run costs about the same as any other `--update` run, a few cents, well
+inside OpenAlex's free daily budget. The very first run has no
+`LSMS_papers_latest.xlsx` to compare against yet, so it costs closer to a
+full run, about $1.60, one time only.

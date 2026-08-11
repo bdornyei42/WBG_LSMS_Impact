@@ -83,24 +83,6 @@
   </div>
 
   <section class="panel">
-    <h2>How each paper was found</h2>
-    <p class="panel-sub">Papers are found by searching for the name of an LSMS survey. Some survey names are unmistakable on their own; others are more generic and need the country's name nearby to confirm a real match. This shows how strong that match was, for every paper found.</p>
-    <div class="gate-grid" id="gate1-grid"></div>
-  </section>
-
-  <section class="panel">
-    <h2>Confirming the data was actually used</h2>
-    <p class="panel-sub">Mentioning a survey is not the same as analyzing its data. Every paper is checked against two separate questions: is this genuinely one of our surveys and not a different survey with a similar name, and did the authors actually work with the data rather than just cite it in passing. A paper is only counted if both checks are satisfied.</p>
-    <div class="gate-grid" id="gate2-grid"></div>
-  </section>
-
-  <section class="panel">
-    <h2>Geography of authors</h2>
-    <p class="panel-sub">Based on each author's institution, so it undercounts African researchers based outside Africa (for example at the World Bank, or at US/European universities).</p>
-    <div class="gate-grid" id="geo-grid"></div>
-  </section>
-
-  <section class="panel">
     <h2>Papers</h2>
     <p class="panel-sub">Search and filter every confirmed paper, including LSMS studies published before FY09.</p>
     <div class="table-controls">
@@ -139,6 +121,29 @@
       <button id="next-page">Next →</button>
     </div>
   </section>
+
+  <details class="panel more-info">
+    <summary>Additional info: how papers are found and confirmed</summary>
+    <div class="more-info-body">
+      <section class="subpanel">
+        <h2>How each paper was found</h2>
+        <p class="panel-sub">Papers are found by searching for the name of an LSMS survey. Some survey names are unmistakable on their own; others are more generic and need the country's name nearby to confirm a real match. This shows how strong that match was, for every paper found.</p>
+        <div class="gate-grid" id="gate1-grid"></div>
+      </section>
+
+      <section class="subpanel">
+        <h2>Confirming the data was actually used</h2>
+        <p class="panel-sub">Mentioning a survey is not the same as analyzing its data. Every paper is checked against two separate questions: is this genuinely one of our surveys and not a different survey with a similar name, and did the authors actually work with the data rather than just cite it in passing. A paper is only counted if both checks are satisfied.</p>
+        <div class="gate-grid" id="gate2-grid"></div>
+      </section>
+
+      <section class="subpanel">
+        <h2>Geography of authors</h2>
+        <p class="panel-sub">Based on each author's institution, so it undercounts African researchers based outside Africa (for example at the World Bank, or at US/European universities).</p>
+        <div class="gate-grid" id="geo-grid"></div>
+      </section>
+    </div>
+  </details>
 
   <footer class="site">
     Generated automatically from the LSMS Research Impact Tracking Pipeline. Source data: OpenAlex.<br>

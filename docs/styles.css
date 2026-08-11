@@ -144,7 +144,7 @@ header.top {
 
 /* ── Section shells ─────────────────────────────────────────────────── */
 
-section.panel {
+.panel {
   background: var(--card);
   border-radius: var(--radius);
   padding: 24px 26px;
@@ -159,6 +159,60 @@ section.panel {
 }
 
 .panel .panel-sub {
+  margin: 0 0 18px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* ── Collapsible "additional info" block ──────────────────────────────── */
+
+details.more-info {
+  padding: 0;
+}
+
+details.more-info summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 18px 26px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--navy);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+details.more-info summary::-webkit-details-marker { display: none; }
+
+details.more-info summary::before {
+  content: "▸";
+  font-size: 12px;
+  color: var(--mid);
+  transition: transform 0.15s ease;
+}
+
+details.more-info[open] summary::before {
+  transform: rotate(90deg);
+}
+
+details.more-info summary:hover {
+  color: var(--mid);
+}
+
+.more-info-body {
+  padding: 0 26px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.subpanel h2 {
+  margin: 0 0 4px;
+  font-size: 16px;
+  color: var(--navy);
+}
+
+.subpanel .panel-sub {
   margin: 0 0 18px;
   font-size: 13px;
   color: var(--muted);
