@@ -257,6 +257,9 @@ details.more-info summary:hover {
 .chart .pie-slice { cursor: pointer; stroke: #fff; stroke-width: 1.5; transition: transform 0.18s ease, filter 0.15s ease; }
 .chart .pie-slice:hover { filter: brightness(1.12); }
 
+.chart .topic-bar { cursor: pointer; transition: filter 0.15s ease; }
+.chart .topic-bar:hover { filter: brightness(1.12); }
+
 /* shared floating tooltip, positioned via JS on hover */
 .chart-tooltip {
   position: fixed;
