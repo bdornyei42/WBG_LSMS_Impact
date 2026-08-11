@@ -376,9 +376,11 @@ table.papers th {
 }
 
 table.papers td.title-cell { max-width: 420px; }
+table.papers td.title-cell .evidence-star { color: #E8A33D; cursor: help; }
 table.papers td.title-cell a { color: var(--mid); text-decoration: none; font-weight: 600; }
 table.papers td.title-cell a:hover { text-decoration: underline; }
 table.papers td.title-cell .venue { display: block; color: var(--muted); font-size: 11.5px; margin-top: 2px; }
+table.papers td.topics-cell { max-width: 260px; white-space: normal; }
 
 .badge {
   display: inline-block;
@@ -387,9 +389,11 @@ table.papers td.title-cell .venue { display: block; color: var(--muted); font-si
   padding: 2px 7px;
   border-radius: 999px;
   white-space: nowrap;
+  margin: 0 3px 3px 0;
 }
 .badge.yes { background: #E3F1E1; color: var(--green); }
 .badge.no { background: #EEF1F4; color: var(--muted); }
+.badge.topic { background: #E8EFF9; color: var(--mid); font-weight: 600; }
 
 .pager {
   display: flex;

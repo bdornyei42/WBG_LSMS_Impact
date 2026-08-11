@@ -406,21 +406,28 @@ function renderTable() {
     const titleHtml = link
       ? `<a href="${escapeAttr(link)}" target="_blank" rel="noopener">${escapeHtml(p.title || "Untitled")}</a>`
       : escapeHtml(p.title || "Untitled");
+    const star = p.is_strong_evidence
+      ? '<span class="evidence-star" title="Strong evidence: clearly confirmed as a genuine use of the survey data">★</span> '
+      : "";
     const africa = [
       p.is_any_author_africa ? '<span class="badge yes">Africa (any)</span>' : "",
       p.is_first_author_africa ? '<span class="badge yes">Africa (1st)</span>' : "",
     ].filter(Boolean).join(" ") || '<span class="badge no">n/a</span>';
+    const topics = p.research_topics
+      ? p.research_topics.split("; ").map((t) => `<span class="badge topic">${escapeHtml(t)}</span>`).join(" ")
+      : '<span class="badge no">—</span>';
     return `<tr>
       <td class="title-cell">
-        ${titleHtml}
+        ${star}${titleHtml}
         <span class="venue">${escapeHtml(p.venue || "")}</span>
       </td>
       <td>${escapeHtml(truncateAuthors(p.authors))}</td>
       <td>${p.fy || ""}</td>
-      <td>${escapeHtml(p.journal_tier || "")}</td>
+      <td>${fmt.format(p.citation_count || 0)}</td>
       <td>${p.peer_reviewed_auto === "Yes" ? '<span class="badge yes">Yes</span>' : '<span class="badge no">No</span>'}</td>
       <td>${escapeHtml(p.geography_clean || "")}</td>
       <td>${africa}</td>
+      <td class="topics-cell">${topics}</td>
     </tr>`;
   }).join("");
 

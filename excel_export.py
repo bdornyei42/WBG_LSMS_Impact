@@ -358,11 +358,16 @@ def write_analysis_sheet(ws, papers, current_fy, completed_fys,
                                   x=0.02, y=0.02, h=0.16, w=0.40))
     ws.add_chart(line, "E24")
 
+    # detect_journal_tier() returns "" (not a real tier) for a paper with no
+    # venue at all -- keep it as its own bucket rather than dropping those
+    # papers from the pie, or the slice counts silently stop summing to the
+    # paper total.
     _TIER_ORDER = [
         "1 — Top General or Top Field",
         "2 — Quality Field",
         "3 — Other Peer-Reviewed",
         "WP — Working Paper / Non-Journal",
+        "",
     ]
     tier_counts = {t: 0 for t in _TIER_ORDER}
     for p in papers:
@@ -379,6 +384,7 @@ def write_analysis_sheet(ws, papers, current_fy, completed_fys,
         "Tier 2 — Quality Field",
         "Tier 3 — Other Peer-Reviewed",
         "Working Paper / Non-Journal",
+        "Unclassified (No Venue Data)",
     ]
     for k, (tkey, lbl) in enumerate(zip(_TIER_ORDER, pie_labels), 1):
         ws.cell(pie_start + k, 1, lbl)

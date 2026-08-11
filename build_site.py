@@ -18,6 +18,7 @@ from datetime import datetime, timezone
 import pandas as pd
 
 from fiscal_year import current_and_prior_fy, fy_to_year
+from metadata import _TOPIC_KEYWORDS
 from relevance import IDENTITY_MIN, USE_MIN
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -30,11 +31,12 @@ ANALYSIS_FY_START = 2009
 
 TIER_ORDER = [
     "1 — Top General or Top Field", "2 — Quality Field",
-    "3 — Other Peer-Reviewed", "WP — Working Paper / Non-Journal",
+    "3 — Other Peer-Reviewed", "WP — Working Paper / Non-Journal", "",
 ]
 TIER_LABELS = [
     "Tier 1: Top General or Top Field", "Tier 2: Quality Field",
     "Tier 3: Other Peer-Reviewed", "Working Paper / Non-Journal",
+    "Unclassified (No Venue Data)",
 ]
 
 # metadata.py's tier labels/numbering have changed a few times (Tier 1 and
@@ -78,7 +80,6 @@ def build_research_topics(papers):
     # names instead -- none of them is a substring of another.
     if "research_topics" not in papers.columns:
         return []
-    from metadata import _TOPIC_KEYWORDS
     counts = {t: 0 for t in _TOPIC_KEYWORDS}
     for val in papers["research_topics"].fillna(""):
         s = str(val)
@@ -107,7 +108,8 @@ PAPER_COLS = [
     "peer_reviewed_auto", "venue", "authors", "first_author", "link",
     "oa_url", "open_access", "wb_affiliation_auto", "multilateral_affiliation",
     "geography_clean", "is_any_author_africa", "is_first_author_africa",
-    "survey_family", "citation_count", "dataset_country",
+    "survey_family", "citation_count", "dataset_country", "research_topics",
+    "is_strong_evidence",
 ]
 
 
@@ -191,6 +193,10 @@ def build_metrics(papers, excluded, current_fy, completed_fys):
                      (papers["use_score"].fillna(0) == USE_MIN)).sum())
     r_use = int((papers["use_score"].fillna(0) > USE_MIN).sum())
 
+    # metadata.detect_journal_tier() returns "" (not a real tier) when a
+    # paper has no venue at all to classify -- that "" is one of TIER_ORDER's
+    # own keys, not silently dropped, so the pie always sums to total_papers
+    # instead of quietly under-reporting by however many papers lack venue data.
     tier_counts = {t: 0 for t in TIER_ORDER}
     for jt in papers["journal_tier"].fillna(""):
         jt = _current_tier(jt)
@@ -267,8 +273,28 @@ def _clean_tier_label(v):
     return _TIER_DASH.sub(": ", v) if isinstance(v, str) else v
 
 
+def _clean_topics(v):
+    # Same ", "-joined format as build_research_topics's input, and the same
+    # problem: "Poverty, Income, & Welfare" has commas inside the topic name
+    # itself, so re-join on "; " (the same separator survey_family already
+    # uses) instead of just passing the raw ", "-split string through.
+    if not isinstance(v, str) or not v.strip():
+        return None
+    found = [t for t in _TOPIC_KEYWORDS if t in v]
+    return "; ".join(found) if found else None
+
+
 def build_papers_json(papers):
     df = papers.copy()
+    # Same bar as the "Strong evidence" gate2 card on the dashboard: a paper
+    # only fails this if it sits at the bare minimum on *both* checks
+    # (identity and data-use). This flags, per paper, which ones clear that
+    # bar rather than just squeaking by.
+    if "identity_score" in df.columns and "use_score" in df.columns:
+        df["is_strong_evidence"] = ~(
+            (df["identity_score"].fillna(0) == IDENTITY_MIN) &
+            (df["use_score"].fillna(0) == USE_MIN)
+        )
     for c in PAPER_COLS:
         if c not in df.columns:
             df[c] = None
@@ -280,6 +306,7 @@ def build_papers_json(papers):
     for c in ("title", "venue", "authors", "first_author"):
         df[c] = df[c].map(_strip_tags)
     df["journal_tier"] = df["journal_tier"].map(_clean_tier_label)
+    df["research_topics"] = df["research_topics"].map(_clean_topics)
 
     def _fy_key(row):
         return (-fy_to_year(row["fy"] or ""), str(row["title"] or "").lower())

@@ -82,7 +82,7 @@
 
   <section class="panel">
     <h2>Papers</h2>
-    <p class="panel-sub">Search and filter every confirmed paper, FY09 to present.</p>
+    <p class="panel-sub">Search and filter every confirmed paper, FY09 to present. ★ marks papers with strong evidence of genuine data use.</p>
     <div class="table-controls">
       <input type="search" id="search" placeholder="Search title, authors, venue…">
       <select id="filter-fy"><option value="">All fiscal years</option></select>
@@ -104,10 +104,11 @@
             <th>Title</th>
             <th>Authors</th>
             <th>FY</th>
-            <th>Journal tier</th>
+            <th>Citations</th>
             <th>Peer-reviewed</th>
             <th>Geography</th>
             <th>Africa</th>
+            <th>Topics</th>
           </tr>
         </thead>
         <tbody id="papers-body"></tbody>
@@ -124,14 +125,6 @@
     <summary>Additional info: how papers are found and confirmed</summary>
     <div class="more-info-body">
       <section class="subpanel">
-        <h2>Totals</h2>
-        <p class="panel-sub">All figures below cover the confirmed papers shown in the Total figure above.</p>
-        <table style="width:100%; font-size:13.5px; border-collapse:collapse;" id="totals-table">
-          <tbody id="totals-summary"></tbody>
-        </table>
-      </section>
-
-      <section class="subpanel">
         <h2>How each paper was found</h2>
         <p class="panel-sub">Papers are found by searching for the name of an LSMS survey. Some survey names are unmistakable on their own; others are more generic and need the country's name nearby to confirm a real match. This shows how strong that match was, for every paper found.</p>
         <div class="gate-grid" id="gate1-grid"></div>
@@ -141,6 +134,14 @@
         <h2>Confirming the data was actually used</h2>
         <p class="panel-sub">Mentioning a survey is not the same as analyzing its data. Every paper is checked against two separate questions: is this genuinely one of our surveys and not a different survey with a similar name, and did the authors actually work with the data rather than just cite it in passing. A paper is only counted if both checks are satisfied.</p>
         <div class="gate-grid" id="gate2-grid"></div>
+      </section>
+
+      <section class="subpanel">
+        <h2>Totals</h2>
+        <p class="panel-sub">All figures below cover the confirmed papers shown in the Total figure above.</p>
+        <table style="width:100%; font-size:13.5px; border-collapse:collapse;" id="totals-table">
+          <tbody id="totals-summary"></tbody>
+        </table>
       </section>
 
       <section class="subpanel">
