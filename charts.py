@@ -1,11 +1,12 @@
 """
-charts.py — WBG-styled PNG charts for the FLOW and Africa SHARE headline
+charts.py — LSMS-branded PNG charts for the FLOW and Africa SHARE headline
 numbers. Reads the run's CSV, not the workbook, so the charts always show
 exactly what was exported.
 
-Palette lives in one place below. The blues are the World Bank ones already
-used across the workbook; swap the hexes here if the team hands over an
-official brand sheet and everything downstream follows.
+Palette lives in one place below, pulled from LSMS_Pipeline_Presentation.pptx
+(the deck's theme fills plus its own embedded chart images) rather than the
+generic WBG palette these used to hold. Swap the hexes here if the team hands
+over a revised brand sheet and everything downstream follows.
 """
 
 from pathlib import Path
@@ -15,17 +16,20 @@ matplotlib.use("Agg")            # no display on a server / in a .bat run
 import matplotlib.pyplot as plt
 from matplotlib.ticker import PercentFormatter, MaxNLocator
 
-# ── WBG palette ──────────────────────────────────────────────────────────────
-NAVY    = "#002244"   # headline text, primary bars
-BLUE    = "#009FDA"   # accent / secondary series
-MID     = "#1F5C99"   # the blue already used on the Excel Analysis sheet
-GREEN   = "#2E7D32"
-ORANGE  = "#E65100"
-GRID    = "#D8DEE5"
-MUTED   = "#5A6672"
+# ── LSMS palette (from LSMS_Pipeline_Presentation.pptx) ─────────────────────
+NAVY    = "#004370"   # headline text, darkest brand navy
+BLUE    = "#1389C6"   # accent blue (LSMS logo / banner fill in the deck)
+SKY     = "#169AF3"   # lighter accent - in-progress / current-FY treatment
+MID     = "#163454"   # primary bars/lines - the navy the deck's own charts use
+GREEN   = "#008980"
+ORANGE  = "#E8702A"   # matches the "first author" line color in the deck's own chart
+GRID    = "#C7D2DD"
+MUTED   = "#5B6472"
 
 DPI = 200
 FIGSIZE = (10, 5.6)
+
+plt.rcParams["font.family"] = ["Calibri", "Segoe UI", "DejaVu Sans"]
 
 
 def _frame(ax, title, subtitle="", ylabel=""):

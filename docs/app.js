@@ -7,6 +7,40 @@ function svgEl(tag, attrs) {
   return el;
 }
 
+// ── Shared hover tooltip, used by all three hand-rolled SVG charts ─────────
+let tooltipEl = null;
+
+function ensureTooltip() {
+  if (!tooltipEl) {
+    tooltipEl = document.createElement("div");
+    tooltipEl.className = "chart-tooltip";
+    document.body.appendChild(tooltipEl);
+  }
+  return tooltipEl;
+}
+
+function moveTooltip(evt) {
+  const tt = ensureTooltip();
+  const pad = 14;
+  let x = evt.clientX + pad, y = evt.clientY + pad;
+  const rect = tt.getBoundingClientRect();
+  if (x + rect.width > window.innerWidth - 8) x = evt.clientX - rect.width - pad;
+  if (y + rect.height > window.innerHeight - 8) y = evt.clientY - rect.height - pad;
+  tt.style.left = `${x}px`;
+  tt.style.top = `${y}px`;
+}
+
+function showTooltip(evt, html) {
+  const tt = ensureTooltip();
+  tt.innerHTML = html;
+  tt.classList.add("visible");
+  moveTooltip(evt);
+}
+
+function hideTooltip() {
+  if (tooltipEl) tooltipEl.classList.remove("visible");
+}
+
 function renderFlowChart(container, flow) {
   const W = 620, H = 320, padL = 44, padR = 12, padT = 16, padB = 34;
   const plotW = W - padL - padR, plotH = H - padT - padB;
@@ -30,10 +64,19 @@ function renderFlowChart(container, flow) {
     const x = padL + i * step + (step - barW) / 2;
     const h = (d.total / max) * plotH;
     const y = padT + plotH - h;
-    svg.appendChild(svgEl("rect", {
+    const bar = svgEl("rect", {
       class: d.is_current ? "bar current" : "bar",
       x, y, width: barW, height: Math.max(h, 1), rx: 2,
-    }));
+    });
+    const africaLine = d.africa_any
+      ? `<div class="tt-row">${fmt.format(d.africa_any)} (${pct(d.africa_any_share)}) with an author at an African institution</div>`
+      : "";
+    const tip = `<div class="tt-title">${d.fy}${d.is_current ? " (in progress)" : ""}</div>` +
+      `<div class="tt-row">${fmt.format(d.total)} papers</div>` + africaLine;
+    bar.addEventListener("mouseenter", (e) => showTooltip(e, tip));
+    bar.addEventListener("mousemove", moveTooltip);
+    bar.addEventListener("mouseleave", hideTooltip);
+    svg.appendChild(bar);
     const lbl = svgEl("text", {
       class: "bar-label", x: x + barW / 2, y: y - 5, "text-anchor": "middle",
     });
@@ -94,16 +137,31 @@ function renderShareChart(container, flow) {
     }
   });
 
+  const seriesLabel = {
+    africa_any_share: "Any author at an African institution",
+    africa_first_share: "First author at an African institution",
+  };
+
   rows.forEach((d, i) => {
     const isCurrent = i === currentIdx;
     let x;
     ["africa_any_share", "africa_first_share"].forEach((key) => {
       const [px, py] = point(i, key);
       x = px;
-      svg.appendChild(svgEl("circle", {
+      const dot = svgEl("circle", {
         class: (key === "africa_any_share" ? "dot-any" : "dot-first") + (isCurrent ? " dot-current" : ""),
         cx: px, cy: py, r: 2.6,
-      }));
+      });
+      // an invisible, generously-sized circle on top gives a comfortable hover
+      // target without making the visible dot itself distractingly large
+      const hit = svgEl("circle", { class: "dot-hit", cx: px, cy: py, r: 9 });
+      const tip = `<div class="tt-title">${d.fy}${isCurrent ? " (in progress)" : ""}</div>` +
+        `<div class="tt-row">${seriesLabel[key]}: ${pct(d[key])}</div>`;
+      hit.addEventListener("mouseenter", (e) => { dot.setAttribute("r", 5); showTooltip(e, tip); });
+      hit.addEventListener("mousemove", moveTooltip);
+      hit.addEventListener("mouseleave", () => { dot.setAttribute("r", 2.6); hideTooltip(); });
+      svg.appendChild(dot);
+      svg.appendChild(hit);
     });
     if (i % 3 === 0 || rows.length <= 10 || isCurrent) {
       const xt = svgEl("text", { class: "axis-label", x, y: H - padB + 16, "text-anchor": "middle" });
@@ -116,7 +174,8 @@ function renderShareChart(container, flow) {
 }
 
 function renderTierPie(container, tiers) {
-  const colors = ["#1F3864", "#2E75B6", "#5B9BD5", "#9DC3E6", "#DEEBF7"];
+  // LSMS navy-to-sky ramp (darkest = strongest tier), matching the deck's own tier chart
+  const colors = ["#004370", "#163454", "#1389C6", "#169AF3", "#C7D2DD"];
   const total = tiers.reduce((s, t) => s + t.count, 0) || 1;
   const cx = 130, cy = 130, r = 110;
   const svg = svgEl("svg", { viewBox: "0 0 260 260" });
@@ -131,7 +190,25 @@ function renderTierPie(container, tiers) {
     const d = frac >= 0.9995
       ? `M ${cx - r},${cy} A ${r},${r} 0 1 1 ${cx + r},${cy} A ${r},${r} 0 1 1 ${cx - r},${cy} Z`
       : `M ${cx},${cy} L ${x1.toFixed(1)},${y1.toFixed(1)} A ${r},${r} 0 ${large} 1 ${x2.toFixed(1)},${y2.toFixed(1)} Z`;
-    svg.appendChild(svgEl("path", { d, fill: colors[i % colors.length] }));
+    const slice = svgEl("path", { d, fill: colors[i % colors.length], class: "pie-slice" });
+
+    // pull the wedge outward along its own mid-angle on hover, rather than a fixed
+    // direction, so every slice - whatever its position on the circle - moves away
+    // from the center convincingly instead of just sliding sideways
+    const mid = (angle + next) / 2;
+    const dx = Math.cos(mid) * 12, dy = Math.sin(mid) * 12;
+    const tip = `<div class="tt-title">${t.label}</div>` +
+      `<div class="tt-row">${fmt.format(t.count)} papers (${pct(t.count / total)})</div>`;
+    slice.addEventListener("mouseenter", (e) => {
+      slice.style.transform = `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px)`;
+      showTooltip(e, tip);
+    });
+    slice.addEventListener("mousemove", moveTooltip);
+    slice.addEventListener("mouseleave", () => {
+      slice.style.transform = "";
+      hideTooltip();
+    });
+    svg.appendChild(slice);
     angle = next;
   });
 

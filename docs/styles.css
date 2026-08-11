@@ -1,11 +1,15 @@
 :root {
-  --navy: #002244;
-  --blue: #009FDA;
-  --mid: #1F5C99;
-  --green: #2E7D32;
-  --orange: #E65100;
-  --grid: #D8DEE5;
-  --muted: #5A6672;
+  /* LSMS brand colors, pulled from LSMS_Pipeline_Presentation.pptx (theme fills + the
+     deck's own chart images) rather than the generic WBG palette these used to hold -
+     --accent-purple/-teal/-green already matched the deck's accent stripe exactly. */
+  --navy: #004370;
+  --blue: #1389C6;
+  --sky: #169AF3;
+  --mid: #163454;
+  --green: #008980;
+  --orange: #E8702A;
+  --grid: #C7D2DD;
+  --muted: #5B6472;
   --accent-purple: #4455A0;
   --accent-teal: #0091B4;
   --accent-green: #008980;
@@ -22,7 +26,7 @@ html, body {
   padding: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: "Segoe UI", Calibri, Arial, sans-serif;
+  font-family: Calibri, "Segoe UI", Arial, sans-serif;
 }
 
 .wrap {
@@ -234,20 +238,49 @@ details.more-info summary:hover {
 
 /* ── Charts (hand-rolled SVG) ───────────────────────────────────────── */
 
-.chart svg { width: 100%; height: auto; display: block; }
-.chart .bar { fill: var(--mid); }
-.chart .bar.current { fill: var(--blue); opacity: 0.55; }
+.chart svg { width: 100%; height: auto; display: block; overflow: visible; }
+.chart .bar { fill: var(--mid); cursor: pointer; transition: fill 0.15s ease; }
+.chart .bar:hover { fill: var(--blue); }
+.chart .bar.current { fill: var(--sky); opacity: 0.6; }
+.chart .bar.current:hover { fill: var(--sky); opacity: 0.85; }
 .chart .bar-label { font-size: 11px; fill: var(--navy); font-weight: 700; }
 .chart .axis-label { font-size: 11px; fill: var(--muted); }
 .chart .gridline { stroke: var(--grid); stroke-width: 1; }
 .chart .line-any { stroke: var(--mid); fill: none; stroke-width: 2.6; }
 .chart .line-first { stroke: var(--orange); fill: none; stroke-width: 2.6; }
 .chart .line-current { opacity: 0.4; stroke-dasharray: 4 3; }
-.chart .dot-any { fill: var(--mid); }
-.chart .dot-first { fill: var(--orange); }
+.chart .dot-any { fill: var(--mid); cursor: pointer; transition: r 0.15s ease; }
+.chart .dot-first { fill: var(--orange); cursor: pointer; transition: r 0.15s ease; }
 .chart .dot-current { opacity: 0.4; }
+.chart .dot-hit { fill: transparent; cursor: pointer; }
 .legend { display: flex; gap: 18px; font-size: 12.5px; color: var(--muted); margin-bottom: 8px; }
 .legend .swatch { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+
+/* pie wedges: hover pulls the slice outward (transform set per-wedge in JS, since the
+   direction depends on each wedge's own angle) and brightens it slightly */
+.chart .pie-slice { cursor: pointer; stroke: #fff; stroke-width: 1.5; transition: transform 0.18s ease, filter 0.15s ease; }
+.chart .pie-slice:hover { filter: brightness(1.12); }
+
+/* shared floating tooltip, positioned via JS on hover */
+.chart-tooltip {
+  position: fixed;
+  z-index: 1000;
+  pointer-events: none;
+  background: var(--navy);
+  color: #fff;
+  font-size: 12.5px;
+  line-height: 1.5;
+  padding: 8px 11px;
+  border-radius: 8px;
+  box-shadow: 0 4px 14px rgba(0,20,50,0.25);
+  opacity: 0;
+  transform: translateY(2px);
+  transition: opacity 0.1s ease, transform 0.1s ease;
+  max-width: 240px;
+}
+.chart-tooltip.visible { opacity: 1; transform: translateY(0); }
+.chart-tooltip .tt-title { font-weight: 700; margin-bottom: 2px; }
+.chart-tooltip .tt-row { color: #C9DCEE; }
 
 /* ── Methodology / gate cards ──────────────────────────────────────── */
 
