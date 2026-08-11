@@ -174,8 +174,7 @@ function renderShareChart(container, flow) {
 }
 
 function renderTierPie(container, tiers) {
-  // LSMS navy-to-sky ramp (darkest = strongest tier), matching the deck's own tier chart
-  const colors = ["#004370", "#163454", "#1389C6", "#169AF3", "#C7D2DD"];
+  const colors = ["#1F3864", "#2E75B6", "#5B9BD5", "#9DC3E6", "#DEEBF7"];
   const total = tiers.reduce((s, t) => s + t.count, 0) || 1;
   const cx = 130, cy = 130, r = 110;
   const svg = svgEl("svg", { viewBox: "0 0 260 260" });

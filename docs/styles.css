@@ -1,15 +1,11 @@
 :root {
-  /* LSMS brand colors, pulled from LSMS_Pipeline_Presentation.pptx (theme fills + the
-     deck's own chart images) rather than the generic WBG palette these used to hold -
-     --accent-purple/-teal/-green already matched the deck's accent stripe exactly. */
   --navy: #004370;
-  --blue: #1389C6;
-  --sky: #169AF3;
-  --mid: #163454;
+  --blue: #009FDA;
+  --mid: #1F5C99;
   --green: #008980;
-  --orange: #E8702A;
-  --grid: #C7D2DD;
-  --muted: #5B6472;
+  --orange: #E65100;
+  --grid: #D8DEE5;
+  --muted: #5A6672;
   --accent-purple: #4455A0;
   --accent-teal: #0091B4;
   --accent-green: #008980;
@@ -26,7 +22,7 @@ html, body {
   padding: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: Calibri, "Segoe UI", Arial, sans-serif;
+  font-family: "Segoe UI", Calibri, Arial, sans-serif;
 }
 
 .wrap {
@@ -241,16 +237,16 @@ details.more-info summary:hover {
 .chart svg { width: 100%; height: auto; display: block; overflow: visible; }
 .chart .bar { fill: var(--mid); cursor: pointer; transition: fill 0.15s ease; }
 .chart .bar:hover { fill: var(--blue); }
-.chart .bar.current { fill: var(--sky); opacity: 0.6; }
-.chart .bar.current:hover { fill: var(--sky); opacity: 0.85; }
+.chart .bar.current { fill: var(--blue); opacity: 0.55; }
+.chart .bar.current:hover { fill: var(--blue); opacity: 0.8; }
 .chart .bar-label { font-size: 11px; fill: var(--navy); font-weight: 700; }
 .chart .axis-label { font-size: 11px; fill: var(--muted); }
 .chart .gridline { stroke: var(--grid); stroke-width: 1; }
-.chart .line-any { stroke: var(--mid); fill: none; stroke-width: 2.6; }
-.chart .line-first { stroke: var(--orange); fill: none; stroke-width: 2.6; }
+.chart .line-any { stroke: var(--orange); fill: none; stroke-width: 2.6; }
+.chart .line-first { stroke: var(--mid); fill: none; stroke-width: 2.6; }
 .chart .line-current { opacity: 0.4; stroke-dasharray: 4 3; }
-.chart .dot-any { fill: var(--mid); cursor: pointer; transition: r 0.15s ease; }
-.chart .dot-first { fill: var(--orange); cursor: pointer; transition: r 0.15s ease; }
+.chart .dot-any { fill: var(--orange); cursor: pointer; transition: r 0.15s ease; }
+.chart .dot-first { fill: var(--mid); cursor: pointer; transition: r 0.15s ease; }
 .chart .dot-current { opacity: 0.4; }
 .chart .dot-hit { fill: transparent; cursor: pointer; }
 .legend { display: flex; gap: 18px; font-size: 12.5px; color: var(--muted); margin-bottom: 8px; }
