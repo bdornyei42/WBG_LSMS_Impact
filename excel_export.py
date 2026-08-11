@@ -358,10 +358,9 @@ def write_analysis_sheet(ws, papers, current_fy, completed_fys,
     ws.add_chart(line, "E24")
 
     _TIER_ORDER = [
-        "1 — Top General",
-        "2 — Top Field",
-        "3 — Quality Field",
-        "4 — Other Peer-Reviewed",
+        "1 — Top General or Top Field",
+        "2 — Quality Field",
+        "3 — Other Peer-Reviewed",
         "WP — Working Paper / Non-Journal",
     ]
     tier_counts = {t: 0 for t in _TIER_ORDER}
@@ -375,10 +374,9 @@ def write_analysis_sheet(ws, papers, current_fy, completed_fys,
     ws.cell(pie_start, 2, "Papers").font = _F_WHITE_BOLD
     ws.cell(pie_start, 2).fill = _FILL_DARK
     pie_labels = [
-        "Tier 1 — Top General",
-        "Tier 2 — Top Field",
-        "Tier 3 — Quality Field",
-        "Tier 4 — Other Peer-Reviewed",
+        "Tier 1 — Top General or Top Field",
+        "Tier 2 — Quality Field",
+        "Tier 3 — Other Peer-Reviewed",
         "Working Paper / Non-Journal",
     ]
     for k, (tkey, lbl) in enumerate(zip(_TIER_ORDER, pie_labels), 1):

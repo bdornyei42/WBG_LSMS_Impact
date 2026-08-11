@@ -59,6 +59,7 @@ function renderShareChart(container, flow) {
 
   const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}` });
   const step = plotW / (rows.length - 1 || 1);
+  const point = (i, key) => [padL + i * step, padT + plotH * (1 - rows[i][key] / max)];
 
   [0, 0.25, 0.5, 0.75, 1].forEach((f) => {
     const y = padT + plotH * (1 - f);
@@ -68,25 +69,43 @@ function renderShareChart(container, flow) {
     svg.appendChild(t);
   });
 
-  const pathFor = (key) => rows.map((d, i) => {
-    const x = padL + i * step;
-    const y = padT + plotH * (1 - d[key] / max);
-    return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
-  }).join(" ");
+  // The current FY is still in progress, so its segment is drawn faded and
+  // dashed, matching how the flow chart lightens that FY's bar.
+  const lastIdx = rows.length - 1;
+  const currentIdx = lastIdx >= 0 && rows[lastIdx].is_current ? lastIdx : -1;
+  const solidEnd = currentIdx === -1 ? lastIdx : currentIdx - 1;
 
-  svg.appendChild(svgEl("path", { class: "line-any", d: pathFor("africa_any_share") }));
-  svg.appendChild(svgEl("path", { class: "line-first", d: pathFor("africa_first_share") }));
+  const pathFor = (key, fromI, toI) => {
+    if (fromI < 0 || toI < 0 || fromI > toI) return "";
+    let d = "";
+    for (let i = fromI; i <= toI; i++) {
+      const [x, y] = point(i, key);
+      d += `${i === fromI ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)} `;
+    }
+    return d.trim();
+  };
+
+  [["africa_any_share", "line-any"], ["africa_first_share", "line-first"]].forEach(([key, cls]) => {
+    if (solidEnd >= 0) {
+      svg.appendChild(svgEl("path", { class: cls, d: pathFor(key, 0, solidEnd) }));
+    }
+    if (currentIdx > 0) {
+      svg.appendChild(svgEl("path", { class: `${cls} line-current`, d: pathFor(key, currentIdx - 1, currentIdx) }));
+    }
+  });
 
   rows.forEach((d, i) => {
-    const x = padL + i * step;
+    const isCurrent = i === currentIdx;
+    let x;
     ["africa_any_share", "africa_first_share"].forEach((key) => {
-      const y = padT + plotH * (1 - d[key] / max);
+      const [px, py] = point(i, key);
+      x = px;
       svg.appendChild(svgEl("circle", {
-        class: key === "africa_any_share" ? "dot-any" : "dot-first",
-        cx: x, cy: y, r: 2.6,
+        class: (key === "africa_any_share" ? "dot-any" : "dot-first") + (isCurrent ? " dot-current" : ""),
+        cx: px, cy: py, r: 2.6,
       }));
     });
-    if (i % 3 === 0 || rows.length <= 10) {
+    if (i % 3 === 0 || rows.length <= 10 || isCurrent) {
       const xt = svgEl("text", { class: "axis-label", x, y: H - padB + 16, "text-anchor": "middle" });
       xt.textContent = d.fy;
       svg.appendChild(xt);

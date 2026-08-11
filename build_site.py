@@ -30,12 +30,12 @@ DOCS = os.path.join(HERE, "docs")
 ANALYSIS_FY_START = 2009
 
 TIER_ORDER = [
-    "1 — Top General Econ", "2 — Top Field", "3 — Quality Field",
-    "4 — Other Peer-Reviewed", "WP — Working Paper / Non-Journal",
+    "1 — Top General or Top Field", "2 — Quality Field",
+    "3 — Other Peer-Reviewed", "WP — Working Paper / Non-Journal",
 ]
 TIER_LABELS = [
-    "Tier 1: Top General", "Tier 2: Top Field", "Tier 3: Quality Field",
-    "Tier 4: Other Peer-Reviewed", "Working Paper / Non-Journal",
+    "Tier 1: Top General or Top Field", "Tier 2: Quality Field",
+    "Tier 3: Other Peer-Reviewed", "Working Paper / Non-Journal",
 ]
 
 PAPER_COLS = [
