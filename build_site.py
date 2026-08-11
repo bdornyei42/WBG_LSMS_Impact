@@ -63,9 +63,25 @@ def _cap_pub_type(v) -> str:
     return v.replace("-", " ").title() if v else "Unknown"
 
 
+# Too rare / not a real empirical use of the data to be worth their own pie
+# slice on the public dashboard.
+_PUBTYPE_EXCLUDE = {"retraction", "reference-entry", "editorial", "supplementary-materials", "review"}
+# Folded into the existing "other" bucket rather than dropped or given their
+# own small slice.
+_PUBTYPE_FOLD_OTHER = {"data-paper", "book", "book-chapter", "conference-paper"}
+
+
 def build_publication_types(papers):
-    counts = papers["publication_type"].fillna("").map(_cap_pub_type).value_counts()
-    return [{"label": lbl, "count": int(n)} for lbl, n in counts.items()]
+    raw = papers["publication_type"].fillna("").str.strip().str.lower()
+    raw = raw[~raw.isin(_PUBTYPE_EXCLUDE)]
+    raw = raw.map(lambda v: "other" if v in _PUBTYPE_FOLD_OTHER else v)
+    counts = raw.map(_cap_pub_type).value_counts()
+    # "Other" is a catch-all, not a real category, so it always sits last on
+    # the chart/legend regardless of where its count would otherwise rank.
+    rows = [{"label": lbl, "count": int(n)} for lbl, n in counts.items() if lbl != "Other"]
+    if "Other" in counts:
+        rows.append({"label": "Other", "count": int(counts["Other"])})
+    return rows
 
 PAPER_COLS = [
     "title", "doi", "year", "fy", "pub_type", "journal_tier",
@@ -131,6 +147,7 @@ def build_metrics(papers, excluded, current_fy, completed_fys):
     pct = lambda n: (n / total) if total else 0
 
     peer = int((papers["peer_reviewed_auto"].astype(str) == "Yes").sum())
+    oa = int(_bool(papers["open_access"]).sum())
     wb = int((papers["wb_affiliation_auto"].astype(str) == "Yes").sum())
     mult_vals = papers["multilateral_affiliation"].astype(str).str.strip()
     mult = int((~mult_vals.isin(["", "nan", "None"])).sum())
@@ -179,6 +196,7 @@ def build_metrics(papers, excluded, current_fy, completed_fys):
         "excluded_no_identity": excl["no_identity"],
         "excluded_vetoed": excl["vetoed"],
         "peer_reviewed": {"count": peer, "share": pct(peer)},
+        "open_access": {"count": oa, "share": pct(oa)},
         "wb_affiliated": {"count": wb, "share": pct(wb)},
         "multilateral": {"count": mult, "share": pct(mult)},
         "current_fy": current_fy,

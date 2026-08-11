@@ -269,6 +269,7 @@ function renderGates(m) {
   const rows = [
     ["Total confirmed papers", fmt.format(m.total_papers)],
     ["Peer-reviewed journal articles", `${fmt.format(m.peer_reviewed.count)} (${pct(m.peer_reviewed.share)})`],
+    ["Open access", `${fmt.format(m.open_access.count)} (${pct(m.open_access.share)})`],
     ["World Bank–affiliated papers", `${fmt.format(m.wb_affiliated.count)} (${pct(m.wb_affiliated.share)})`],
     ["Other multilateral organization–affiliated papers", `${fmt.format(m.multilateral.count)} (${pct(m.multilateral.share)})`],
   ];

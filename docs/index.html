@@ -69,24 +69,19 @@
 
   <div class="chart-grid" style="grid-template-columns: 1fr 1.4fr;">
     <section class="panel">
-      <h2>Papers by journal tier</h2>
-      <p class="panel-sub">Publications classified by venue, from leading economics journals to unpublished working papers.</p>
-      <div class="chart" id="tier-pie" style="max-width:260px;"></div>
+      <h2>Papers by publication type</h2>
+      <p class="panel-sub">How the confirmed papers break down by the kind of publication.</p>
+      <div class="chart" id="pubtype-pie" style="max-width:260px;"></div>
     </section>
+  </div>
+
+  <div class="chart-grid">
     <section class="panel">
       <h2>Totals</h2>
       <p class="panel-sub">All figures below cover the confirmed papers shown in the Total figure above.</p>
       <table style="width:100%; font-size:13.5px; border-collapse:collapse;" id="totals-table">
         <tbody id="totals-summary"></tbody>
       </table>
-    </section>
-  </div>
-
-  <div class="chart-grid" style="grid-template-columns: 1fr 1.4fr;">
-    <section class="panel">
-      <h2>Papers by publication type (OpenAlex)</h2>
-      <p class="panel-sub">OpenAlex's own publication-type category for each paper, as returned by the API.</p>
-      <div class="chart" id="pubtype-pie" style="max-width:260px;"></div>
     </section>
   </div>
 
@@ -149,6 +144,12 @@
         <h2>Geography of authors</h2>
         <p class="panel-sub">Based on each author's institution, so it undercounts African researchers based outside Africa (for example at the World Bank, or at US/European universities).</p>
         <div class="gate-grid" id="geo-grid"></div>
+      </section>
+
+      <section class="subpanel">
+        <h2>Papers by journal tier</h2>
+        <p class="panel-sub">Publications classified by venue, from leading economics journals to unpublished working papers. Preliminary — this classification is still being validated.</p>
+        <div class="chart" id="tier-pie" style="max-width:260px;"></div>
       </section>
     </div>
   </details>

@@ -5,10 +5,34 @@ Nothing here needs manual coding: affiliations, topics, dataset country,
 publication type, and journal tier are all derived from what OpenAlex returns.
 """
 
-_WB_NAMES = {
+from matching import word_present
+
+# Full phrases: safe as a plain substring check.
+_WB_PHRASES = {
     "world bank", "world bank group", "international finance corporation",
-    "ibrd", "ida ", "international development association",
+    "international development association",
+    "international bank for reconstruction and development",
+    "multilateral investment guarantee agency",
+    "international centre for settlement of investment disputes",
 }
+# Short acronyms: need a whole-word match. A bare substring check on "ida"
+# (even "ida " with a trailing space) matches inside "Florida State
+# University" -- confirmed against live OpenAlex data -- so these go through
+# matching.word_present() instead, same as every other short-acronym check
+# in this codebase.
+_WB_ACRONYMS = {"ibrd", "ifc", "ida", "miga", "icsid", "wbg"}
+
+
+def _affiliation_texts(authorship: dict) -> list:
+    # OpenAlex frequently fails to resolve "World Bank" (and misresolves it
+    # to an unrelated institution sharing the same city, e.g. "Bank of
+    # Italy" for a Rome-based WB unit) to a linked institution record, so
+    # `institutions` alone undercounts WBG authors significantly. The raw,
+    # unparsed affiliation string is checked too since it still names the
+    # institution even when OpenAlex's linker gets it wrong or gives up.
+    texts = [inst.get("display_name", "") for inst in authorship.get("institutions", [])]
+    texts += [s for s in (authorship.get("raw_affiliation_strings") or []) if s]
+    return texts
 
 _MULTILAT_MAP = {
     "IFPRI":  ["international food policy research", "ifpri"],
@@ -67,9 +91,11 @@ _ISA_COUNTRIES = ["Burkina Faso", "Ethiopia", "Malawi", "Mali", "Niger",
 
 def detect_wb(authorships: list) -> str:
     for a in authorships:
-        for inst in a.get("institutions", []):
-            name = inst.get("display_name", "").lower()
-            if any(wb in name for wb in _WB_NAMES):
+        for text in _affiliation_texts(a):
+            low = text.lower()
+            if any(p in low for p in _WB_PHRASES):
+                return "Yes"
+            if any(word_present(acr, text) for acr in _WB_ACRONYMS):
                 return "Yes"
     return "No"
 
@@ -78,8 +104,8 @@ def detect_multilat(authorships: list) -> str:
     found = []
     for org_label, patterns in _MULTILAT_MAP.items():
         for a in authorships:
-            for inst in a.get("institutions", []):
-                name = inst.get("display_name", "").lower()
+            for text in _affiliation_texts(a):
+                name = text.lower()
                 if any(p in name for p in patterns):
                     if org_label not in found:
                         found.append(org_label)
