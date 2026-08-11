@@ -58,7 +58,7 @@ def _current_tier(jt: str) -> str:
 PAPER_COLS = [
     "title", "doi", "year", "fy", "pub_type", "journal_tier",
     "peer_reviewed_auto", "venue", "authors", "first_author", "link",
-    "open_access", "wb_affiliation_auto", "multilateral_affiliation",
+    "oa_url", "open_access", "wb_affiliation_auto", "multilateral_affiliation",
     "geography_clean", "is_any_author_africa", "is_first_author_africa",
     "survey_family", "citation_count", "dataset_country",
 ]

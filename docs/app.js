@@ -326,14 +326,17 @@ function renderTable() {
   const start = page * PAGE_SIZE;
   const rows = filtered.slice(start, start + PAGE_SIZE);
   tbody.innerHTML = rows.map((p) => {
-    const link = p.link || p.doi || "#";
+    const link = p.doi || p.link || p.oa_url || "";
+    const titleHtml = link
+      ? `<a href="${escapeAttr(link)}" target="_blank" rel="noopener">${escapeHtml(p.title || "Untitled")}</a>`
+      : escapeHtml(p.title || "Untitled");
     const africa = [
       p.is_any_author_africa ? '<span class="badge yes">Africa (any)</span>' : "",
       p.is_first_author_africa ? '<span class="badge yes">Africa (1st)</span>' : "",
     ].filter(Boolean).join(" ") || '<span class="badge no">n/a</span>';
     return `<tr>
       <td class="title-cell">
-        <a href="${escapeAttr(link)}" target="_blank" rel="noopener">${escapeHtml(p.title || "Untitled")}</a>
+        ${titleHtml}
         <span class="venue">${escapeHtml(p.venue || "")}</span>
       </td>
       <td>${escapeHtml(truncateAuthors(p.authors))}</td>
