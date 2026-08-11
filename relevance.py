@@ -43,12 +43,15 @@ USE_MIN = 2
 # real tied signal but never substitute for one.
 UNTIED_CAP = 1
 
-# The exact six publication types that can never be a genuine empirical use
+# The exact seven publication types that can never be a genuine empirical use
 # of the survey data. Exhaustive -- do not add without checking first.
 # Sourced from OpenAlex's own `type` field. Editorial is deliberately NOT here.
+# "peer-review" is OpenAlex's type for a published peer-review report itself
+# (e.g. an F1000/Publons review of someone else's work), not a peer-reviewed
+# research article -- those are typed "article" and aren't touched by this.
 EXCLUDED_PUB_TYPES = {
     "conference-abstract", "dataset", "paratext",
-    "erratum", "letter", "software",
+    "erratum", "letter", "software", "peer-review",
 }
 
 # A review that genuinely re-analyses the microdata still passes -- it just has

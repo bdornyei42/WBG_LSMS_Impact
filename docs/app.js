@@ -173,8 +173,18 @@ function renderShareChart(container, flow) {
   container.appendChild(svg);
 }
 
-function renderTierPie(container, tiers) {
-  const colors = ["#1F3864", "#2E75B6", "#5B9BD5", "#9DC3E6", "#DEEBF7"];
+const TIER_COLORS = ["#1F3864", "#2E75B6", "#5B9BD5", "#9DC3E6", "#DEEBF7"];
+
+// Wider than TIER_COLORS since publication_type (OpenAlex's own category,
+// unlike our small fixed set of journal tiers) can run to a dozen-plus
+// distinct values; ordered so the biggest slice gets the most saturated color.
+const PUBTYPE_COLORS = [
+  "#1F5C99", "#009FDA", "#0091B4", "#008980", "#4455A0", "#E65100",
+  "#004370", "#5B9BD5", "#9DC3E6", "#7A8CC4", "#6FBFB0", "#F2A354",
+  "#8FAFC9", "#B7C4D6",
+];
+
+function renderTierPie(container, tiers, colors = TIER_COLORS) {
   const total = tiers.reduce((s, t) => s + t.count, 0) || 1;
   const cx = 130, cy = 130, r = 110;
   const svg = svgEl("svg", { viewBox: "0 0 260 260" });
@@ -376,6 +386,7 @@ async function main() {
   renderFlowChart(document.getElementById("flow-chart"), data.flow);
   renderShareChart(document.getElementById("share-chart"), data.flow);
   renderTierPie(document.getElementById("tier-pie"), data.metrics.journal_tiers);
+  renderTierPie(document.getElementById("pubtype-pie"), data.metrics.publication_types, PUBTYPE_COLORS);
   renderGates(data.metrics);
   renderGeography(data.metrics);
 

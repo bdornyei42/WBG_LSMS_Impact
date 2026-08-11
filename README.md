@@ -355,9 +355,10 @@ describes using data. Untied evidence (generic empirical vocabulary, data-use
 language with no survey named) is capped at 1 point total, so it can corroborate
 a real signal but never carry the axis by itself.
 
-**Publication type** is the one absolute veto: the six OpenAlex types that can
-never be an empirical use: conference abstract, dataset, paratext, erratum,
-letter, software. Editorial is deliberately *not* on that list.
+**Publication type** is the one absolute veto: the seven OpenAlex types that
+can never be an empirical use: conference abstract, dataset, paratext,
+erratum, letter, software, peer review. Editorial is deliberately *not* on
+that list.
 
 **Reviews** are flagged rather than vetoed. A review that genuinely re-analyses
 the microdata still passes; it just has to show a *strong* tied use signal
@@ -547,7 +548,12 @@ The function that ties everything together, in order:
    programme began) or after the current year (allowing one year of headroom
    for legitimately forthcoming articles). This second check exists because
    OpenAlex occasionally carries a placeholder or erroneous future publication
-   date, which would otherwise show up as, say, a paper from 2028.
+   date, which would otherwise show up as, say, a paper from 2028. Then drop
+   anything before FY09 outright (`MIN_ANALYSIS_FY_YEAR` in `discover.py`) --
+   LSMS-ISA, the current phase of the survey program, began that fiscal year,
+   and this floor isn't adjustable via a flag, unlike `--min-year`. Keeps the
+   search methodology in step with `build_site.ANALYSIS_FY_START`, which
+   applies the same FY09 floor to the dashboard.
 5. Deduplicate (see section 7 above): this must happen *before* scoring, so a
    paper's separate matches (several terms, several families) merge into one
    record first; multi-term and multi-family are identity signals and need that

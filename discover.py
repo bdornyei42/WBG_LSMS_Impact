@@ -34,7 +34,7 @@ if hasattr(sys.stdout, "reconfigure"):
 
 import keywords
 from keywords import SURVEY_FAMILIES
-from fiscal_year import fy_start_date, current_and_prior_fy
+from fiscal_year import fy_start_date, current_and_prior_fy, fy_to_year
 from fetchers import OpenAlexFetcher, CrossrefFetcher, BudgetExceeded
 from dedup import deduplicate, load_existing, load_previous_scores, _split
 from relevance import rank, passes, IDENTITY_MIN, USE_MIN
@@ -78,6 +78,12 @@ def resolve_output_dir(preferred=None) -> tuple[Path, bool]:
         "\n[error] No writable folder could be found for the results.\n"
         f"        Tried: {', '.join(str(c) for c in candidates)}\n"
         "        Copy the tool somewhere local, such as your Desktop, and retry.")
+
+
+# LSMS-ISA, the current phase of the survey program, began in FY09; matches
+# build_site.ANALYSIS_FY_START so the dashboard and the search methodology
+# agree on the same window. Fiscal, not calendar, year -- FY09 starts Jul 2008.
+MIN_ANALYSIS_FY_YEAR = 2009
 
 
 def latest_previous_export(exclude: Optional[str] = None,
@@ -229,6 +235,13 @@ def run_discovery(
     if verbose and len(all_papers) < n_before:
         print(f"  Dropped {n_before - len(all_papers)} papers outside "
               f"{min_year}\u2013{MAX_VALID_YEAR}", flush=True)
+
+    # Drop anything before FY09 (LSMS-ISA's start), regardless of --min-year.
+    n_before_fy = len(all_papers)
+    all_papers = [p for p in all_papers if fy_to_year(p.get("fy")) >= MIN_ANALYSIS_FY_YEAR]
+    if verbose and len(all_papers) < n_before_fy:
+        print(f"  Dropped {n_before_fy - len(all_papers)} papers before "
+              f"FY{str(MIN_ANALYSIS_FY_YEAR)[-2:]} (LSMS-ISA start)", flush=True)
 
     # Dedup before the relevance gate, so a paper's separate matches (several
     # terms, several families) merge into one record before it's scored --

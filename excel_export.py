@@ -192,7 +192,8 @@ def write_analysis_sheet(ws, papers, current_fy, completed_fys,
     _data_row(ws, r, "  Excluded — not confidently our survey (name collision / other country)",
               "in 'Not Relevant (Backup)' sheet", n_no_ident); r += 1
     _data_row(ws, r, "  Excluded — publication type can't be an empirical use",
-              "conference abstract, dataset, paratext, erratum, letter, software", n_vetoed); r += 1
+              "conference abstract, dataset, paratext, erratum, letter, software, peer review",
+              n_vetoed); r += 1
     _data_row(ws, r, "  Total retrieved before exclusion", "", total + len(excluded)); r += 1
     _data_row(ws, r, "Peer-reviewed journal articles (auto-detected)", "", peer, pct(peer)); r += 1
     _data_row(ws, r, "World Bank–affiliated papers (auto-detected)", "", wb_, pct(wb_)); r += 1

@@ -55,6 +55,18 @@ _LEGACY_TIER_LABELS = {
 def _current_tier(jt: str) -> str:
     return _LEGACY_TIER_LABELS.get(jt, jt)
 
+
+def _cap_pub_type(v) -> str:
+    # OpenAlex's raw `type` field, e.g. "book-chapter" -> "Book Chapter".
+    # This is the API's own category, not our detect_pub_type() reclassification.
+    v = (v or "").strip()
+    return v.replace("-", " ").title() if v else "Unknown"
+
+
+def build_publication_types(papers):
+    counts = papers["publication_type"].fillna("").map(_cap_pub_type).value_counts()
+    return [{"label": lbl, "count": int(n)} for lbl, n in counts.items()]
+
 PAPER_COLS = [
     "title", "doi", "year", "fy", "pub_type", "journal_tier",
     "peer_reviewed_auto", "venue", "authors", "first_author", "link",
@@ -198,6 +210,7 @@ def build_metrics(papers, excluded, current_fy, completed_fys):
             {"label": lbl, "count": tier_counts[key]}
             for key, lbl in zip(TIER_ORDER, TIER_LABELS)
         ],
+        "publication_types": build_publication_types(papers),
     }
 
 
