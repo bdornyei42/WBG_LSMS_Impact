@@ -311,8 +311,15 @@ def build_papers_json(papers):
     def _fy_key(row):
         return (-fy_to_year(row["fy"] or ""), str(row["title"] or "").lower())
 
-    df = df.where(pd.notna(df), None)
     records = df.to_dict(orient="records")
+    # pandas' own NaN->None sanitizing (df.where(pd.notna(df), None)) isn't
+    # reliable across pandas versions: pandas 3's default string dtype can't
+    # hold a Python None, so it silently puts NaN right back, and
+    # json.dump() (allow_nan=True by default) then writes a literal `NaN`
+    # token -- valid Python, invalid JSON, and it breaks JSON.parse on the
+    # dashboard. Sanitize the built records directly instead.
+    records = [{k: (None if isinstance(v, float) and pd.isna(v) else v)
+                for k, v in r.items()} for r in records]
     records.sort(key=lambda r: (-fy_to_year(r.get("fy") or ""), str(r.get("title") or "").lower()))
     return records
 
@@ -334,11 +341,15 @@ def main():
         "flow": build_flow(papers, current_fy, completed_fys),
     }
 
+    # allow_nan=False: a stray NaN belongs in the data, not silently written
+    # as the invalid-JSON `NaN` token -- fail the build instead of shipping
+    # a data.json/papers.json the dashboard's JSON.parse can't read.
     with open(os.path.join(DOCS, "data.json"), "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=None, separators=(",", ":"))
+        json.dump(data, f, ensure_ascii=False, indent=None, separators=(",", ":"), allow_nan=False)
 
     with open(os.path.join(DOCS, "papers.json"), "w", encoding="utf-8") as f:
-        json.dump(build_papers_json(recent), f, ensure_ascii=False, indent=None, separators=(",", ":"))
+        json.dump(build_papers_json(recent), f, ensure_ascii=False, indent=None,
+                   separators=(",", ":"), allow_nan=False)
 
     print(f"[build_site] {len(recent)} papers -> docs/data.json, docs/papers.json (source: {source_file})")
 
